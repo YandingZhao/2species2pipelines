@@ -27,6 +27,10 @@
     "bbknn_container": {
       "type": "string",
       "description": "Container image for the BBKNN module process"
+    },
+    "scanorama_container": {
+      "type": "string",
+      "description": "Container image for the Scanorama module process"
     }
   },
   "required": [

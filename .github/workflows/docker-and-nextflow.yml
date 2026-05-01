@@ -53,7 +53,8 @@ jobs:
             --harmony_container local/harmony-module:ci \
             --seurat4_container local/harmony-module:ci \
             --fastmnn_container local/harmony-module:ci \
-            --bbknn_container local/bbknn-module:ci
+            --bbknn_container local/bbknn-module:ci \
+            --scanorama_container local/bbknn-module:ci
 
       - name: Nextflow test
         run: |
@@ -61,4 +62,5 @@ jobs:
             --harmony_container local/harmony-module:ci \
             --seurat4_container local/harmony-module:ci \
             --fastmnn_container local/harmony-module:ci \
-            --bbknn_container local/bbknn-module:ci
+            --bbknn_container local/bbknn-module:ci \
+            --scanorama_container local/bbknn-module:ci

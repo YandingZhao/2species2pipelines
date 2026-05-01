@@ -1,7 +1,7 @@
 FROM python:3.10-slim
 
 LABEL maintainer="2species2pipelines"
-LABEL description="Python runtime for BBKNN integration"
+LABEL description="Python runtime for BBKNN and Scanorama integration"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir \
     leidenalg==0.10.2 \
     numpy==1.26.4 \
     pandas==2.2.3 \
+    scanorama==1.7.4 \
     scanpy==1.10.3 \
     scipy==1.14.1 \
     scikit-learn==1.5.2
