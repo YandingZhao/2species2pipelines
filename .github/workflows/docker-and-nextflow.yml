@@ -42,5 +42,11 @@ jobs:
       - name: Nextflow smoke test (stub)
         run: |
           nextflow run . -profile test,docker -stub-run \
-            --harmony_container local/harmony-module:dev \
-            --seurat4_container local/harmony-module:dev
+            --harmony_container local/harmony-module:ci \
+            --seurat4_container local/harmony-module:ci
+
+      - name: Nextflow test
+        run: |
+          nextflow run . -profile test,docker \
+            --harmony_container local/harmony-module:ci \
+            --seurat4_container local/harmony-module:ci
