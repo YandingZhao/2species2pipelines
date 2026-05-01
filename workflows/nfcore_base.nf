@@ -3,6 +3,7 @@ nextflow.enable.dsl = 2
 include { MAKE_RUN_METADATA } from '../modules/local/make_run_metadata'
 include { HARMONY_INTEGRATION } from '../modules/local/harmony_integration'
 include { SEURAT4_INTEGRATION } from '../modules/local/seurat4_integration'
+include { FASTMNN_INTEGRATION } from '../modules/local/fastmnn_integration'
 
 workflow NFCORE_BASE {
     main:
@@ -14,6 +15,7 @@ workflow NFCORE_BASE {
     ch_reports = ch_checked.map { row -> tuple(row.sample as String, row) }
     harmony_script = file("${projectDir}/scripts/run_harmony_module.R")
     seurat4_script = file("${projectDir}/scripts/run_seurat4_module.R")
+    fastmnn_script = file("${projectDir}/scripts/run_fastmnn_module.R")
     ch_harmony = ch_checked.map { row ->
         tuple(
             row.sample as String,
@@ -34,10 +36,21 @@ workflow NFCORE_BASE {
             seurat4_script
         )
     }
+    ch_fastmnn = ch_checked.map { row ->
+        tuple(
+            row.sample as String,
+            file(row.source_a),
+            file(row.source_b),
+            (row.species_a ?: "unknown") as String,
+            (row.species_b ?: "unknown") as String,
+            fastmnn_script
+        )
+    }
 
     MAKE_RUN_METADATA(ch_reports)
     HARMONY_INTEGRATION(ch_harmony)
     SEURAT4_INTEGRATION(ch_seurat4)
+    FASTMNN_INTEGRATION(ch_fastmnn)
 
     emit:
     report_files = MAKE_RUN_METADATA.out.report
@@ -47,4 +60,7 @@ workflow NFCORE_BASE {
     seurat4_reports = SEURAT4_INTEGRATION.out.report
     seurat4_pca = SEURAT4_INTEGRATION.out.pca
     seurat4_rds = SEURAT4_INTEGRATION.out.integrated_rds
+    fastmnn_reports = FASTMNN_INTEGRATION.out.report
+    fastmnn_embedding = FASTMNN_INTEGRATION.out.embedding
+    fastmnn_rds = FASTMNN_INTEGRATION.out.integrated_rds
 }

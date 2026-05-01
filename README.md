@@ -17,8 +17,10 @@ Key files:
 - `modules/local/make_run_metadata.nf` as a local example process
 - `modules/local/harmony_integration.nf` as the first integration module
 - `modules/local/seurat4_integration.nf` as the second integration module
+- `modules/local/fastmnn_integration.nf` as the third integration module
 - `scripts/run_harmony_module.R` as the Harmony runner inspired by benchmark scripts
 - `scripts/run_seurat4_module.R` as the Seurat4 CCA runner inspired by benchmark scripts
+- `scripts/run_fastmnn_module.R` as the fastMNN runner inspired by benchmark scripts
 - `docker/Dockerfile` as the integration runtime image
 - `.github/workflows/docker-and-nextflow.yml` as CI build and smoke test
 - `nextflow.config` with `standard`, `test`, and `docker` profiles
@@ -41,7 +43,8 @@ docker build -t local/harmony-module:dev -f docker/Dockerfile .
 ```bash
 nextflow run . -profile test,docker -stub-run \
 	--harmony_container local/harmony-module:dev \
-	--seurat4_container local/harmony-module:dev
+	--seurat4_container local/harmony-module:dev \
+	--fastmnn_container local/harmony-module:dev
 ```
 
 Run integration modules without stub:
@@ -49,7 +52,8 @@ Run integration modules without stub:
 ```bash
 nextflow run . -profile docker,test \
 	--harmony_container local/harmony-module:dev \
-	--seurat4_container local/harmony-module:dev
+	--seurat4_container local/harmony-module:dev \
+	--fastmnn_container local/harmony-module:dev
 ```
 
 Outputs are written to `results/` (or `tests/results/` with the test profile).

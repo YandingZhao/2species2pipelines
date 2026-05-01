@@ -19,6 +19,10 @@
     "seurat4_container": {
       "type": "string",
       "description": "Container image for the Seurat4 module process"
+    },
+    "fastmnn_container": {
+      "type": "string",
+      "description": "Container image for the fastMNN module process"
     }
   },
   "required": [
