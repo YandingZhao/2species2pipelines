@@ -42,14 +42,6 @@ jobs:
           tags: local/bbknn-module:ci
           load: true
 
-      - name: Generate BBKNN test data in container
-        run: |
-          docker run --rm \
-            -v "$PWD":/work \
-            -w /work \
-            local/bbknn-module:ci \
-            python scripts/generate_bbknn_test_data.py
-
       - name: Install Nextflow
         run: |
           curl -s https://get.nextflow.io | bash

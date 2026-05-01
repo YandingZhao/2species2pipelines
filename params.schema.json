@@ -8,10 +8,6 @@
       "type": "string",
       "description": "Path to a CSV samplesheet with headers: sample,species_a,species_b,source_a,source_b"
     },
-    "bbknn_input": {
-      "type": "string",
-      "description": "Path to a CSV BBKNN samplesheet with headers: sample,species_a,species_b,source_a,source_b (.h5ad inputs)"
-    },
     "outdir": {
       "type": "string",
       "description": "Directory where pipeline outputs are written"

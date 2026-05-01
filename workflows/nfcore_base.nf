@@ -5,6 +5,7 @@ include { HARMONY_INTEGRATION } from '../modules/local/harmony_integration'
 include { SEURAT4_INTEGRATION } from '../modules/local/seurat4_integration'
 include { FASTMNN_INTEGRATION } from '../modules/local/fastmnn_integration'
 include { BBKNN_INTEGRATION } from '../modules/local/bbknn_integration'
+include { SEURAT_TO_ANNDATA_PAIR } from '../modules/local/seurat_to_anndata_pair'
 
 workflow NFCORE_BASE {
     main:
@@ -14,15 +15,12 @@ workflow NFCORE_BASE {
 
     ch_checked = ch_samples.ifEmpty { error "No rows found in input samplesheet: ${params.input}" }
     ch_reports = ch_checked.map { row -> tuple(row.sample as String, row) }
-    ch_bbknn_samples = channel
-        .fromPath(params.bbknn_input, checkIfExists: true)
-        .splitCsv(header: true)
-        .ifEmpty { error "No rows found in BBKNN samplesheet: ${params.bbknn_input}" }
 
     harmony_script = file("${projectDir}/scripts/run_harmony_module.R")
     seurat4_script = file("${projectDir}/scripts/run_seurat4_module.R")
     fastmnn_script = file("${projectDir}/scripts/run_fastmnn_module.R")
     bbknn_script = file("${projectDir}/scripts/run_bbknn_module.py")
+    seurat_to_anndata_script = file("${projectDir}/scripts/run_seurat_to_anndata_pair.R")
     ch_harmony = ch_checked.map { row ->
         tuple(
             row.sample as String,
@@ -53,7 +51,12 @@ workflow NFCORE_BASE {
             fastmnn_script
         )
     }
-    ch_bbknn = ch_bbknn_samples.map { row ->
+    ch_bbknn_h5ad = ch_checked
+        .filter { row ->
+            row.source_a.toString().toLowerCase().endsWith('.h5ad') &&
+            row.source_b.toString().toLowerCase().endsWith('.h5ad')
+        }
+        .map { row ->
         tuple(
             row.sample as String,
             file(row.source_a),
@@ -63,6 +66,31 @@ workflow NFCORE_BASE {
             bbknn_script
         )
     }
+
+    ch_bbknn_rds_convert = ch_checked
+        .filter { row ->
+            row.source_a.toString().toLowerCase().endsWith('.rds') &&
+            row.source_b.toString().toLowerCase().endsWith('.rds')
+        }
+        .map { row ->
+        tuple(
+            row.sample as String,
+            file(row.source_a),
+            file(row.source_b),
+            (row.species_a ?: "unknown") as String,
+            (row.species_b ?: "unknown") as String,
+            seurat_to_anndata_script
+        )
+    }
+
+    SEURAT_TO_ANNDATA_PAIR(ch_bbknn_rds_convert)
+
+    ch_bbknn_from_rds = SEURAT_TO_ANNDATA_PAIR.out.bbknn_input.map { sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b ->
+        tuple(sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b, bbknn_script)
+    }
+
+    ch_bbknn = ch_bbknn_h5ad.mix(ch_bbknn_from_rds)
+        .ifEmpty { error "No valid BBKNN inputs found. Provide both inputs as .h5ad or both as .rds in ${params.input}" }
 
     MAKE_RUN_METADATA(ch_reports)
     HARMONY_INTEGRATION(ch_harmony)

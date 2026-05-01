@@ -19,11 +19,12 @@ Key files:
 - `modules/local/seurat4_integration.nf` as the second integration module
 - `modules/local/fastmnn_integration.nf` as the third integration module
 - `modules/local/bbknn_integration.nf` as the first Python integration module
+- `modules/local/seurat_to_anndata_pair.nf` for automatic Seurat `.rds` to `.h5ad` conversion for BBKNN inputs
 - `scripts/run_harmony_module.R` as the Harmony runner inspired by benchmark scripts
 - `scripts/run_seurat4_module.R` as the Seurat4 CCA runner inspired by benchmark scripts
 - `scripts/run_fastmnn_module.R` as the fastMNN runner inspired by benchmark scripts
 - `scripts/run_bbknn_module.py` as the BBKNN runner inspired by benchmark scripts
-- `scripts/generate_bbknn_test_data.py` to generate synthetic `.h5ad` test data
+- `scripts/run_seurat_to_anndata_pair.R` for converting Seurat pair inputs to `.h5ad`
 - `docker/Dockerfile` as the integration runtime image
 - `docker/Dockerfile.bbknn` as the BBKNN runtime image
 - `.github/workflows/docker-and-nextflow.yml` as CI build and smoke test
@@ -49,10 +50,6 @@ docker build -t local/bbknn-module:dev -f docker/Dockerfile.bbknn .
 ```
 
 ```bash
-docker run --rm -v "$PWD":/work -w /work local/bbknn-module:dev python scripts/generate_bbknn_test_data.py
-```
-
-```bash
 nextflow run . -profile test,docker -stub-run \
 	--harmony_container local/harmony-module:dev \
 	--seurat4_container local/harmony-module:dev \
@@ -71,6 +68,8 @@ nextflow run . -profile docker,test \
 ```
 
 Outputs are written to `results/` (or `tests/results/` with the test profile).
+
+For BBKNN, if `source_a` and `source_b` are Seurat `.rds` files in the input samplesheet, they are converted automatically to `.h5ad` before BBKNN runs.
 
 ## CI
 
