@@ -15,6 +15,10 @@
     "harmony_container": {
       "type": "string",
       "description": "Container image for the Harmony module process"
+    },
+    "seurat4_container": {
+      "type": "string",
+      "description": "Container image for the Seurat4 module process"
     }
   },
   "required": [
