@@ -20,5 +20,6 @@ ENV RETICULATE_PYTHON=/opt/rpy/bin/python
 RUN R -e "install.packages(c('harmony','data.table','cowplot'), repos='https://cloud.r-project.org')"
 RUN R -e "if (!requireNamespace('BiocManager', quietly=TRUE)) install.packages('BiocManager', repos='https://cloud.r-project.org'); BiocManager::install(c('SingleCellExperiment','batchelor','zellkonverter'), ask=FALSE, update=FALSE)"
 RUN R -e "if (!requireNamespace('remotes', quietly=TRUE)) install.packages('remotes', repos='https://cloud.r-project.org'); remotes::install_github('satijalab/seurat-wrappers')"
+RUN R -e "if (!requireNamespace('orthogene', quietly=TRUE)) remotes::install_github('neurogenomics/orthogene')"
 
 WORKDIR /workspace

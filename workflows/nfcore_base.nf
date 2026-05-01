@@ -7,6 +7,7 @@ include { FASTMNN_INTEGRATION } from '../modules/local/fastmnn_integration'
 include { BBKNN_INTEGRATION } from '../modules/local/bbknn_integration'
 include { SCANORAMA_INTEGRATION } from '../modules/local/scanorama_integration'
 include { SEURAT_TO_ANNDATA_PAIR } from '../modules/local/seurat_to_anndata_pair'
+include { ORTHOLOG_CONVERT_PAIR } from '../modules/local/ortholog_convert_pair'
 
 workflow NFCORE_BASE {
     main:
@@ -23,33 +24,55 @@ workflow NFCORE_BASE {
     bbknn_script = file("${projectDir}/scripts/run_bbknn_module.py")
     scanorama_script = file("${projectDir}/scripts/run_scanorama_module.py")
     seurat_to_anndata_script = file("${projectDir}/scripts/run_seurat_to_anndata_pair.R")
-    ch_harmony = ch_checked.map { row ->
+    ortholog_convert_script = file("${projectDir}/scripts/run_ortholog_convert_pair.R")
+
+    ch_rds_for_ortholog = ch_checked
+        .filter { row ->
+            row.source_a.toString().toLowerCase().endsWith('.rds') &&
+            row.source_b.toString().toLowerCase().endsWith('.rds')
+        }
+        .map { row ->
         tuple(
             row.sample as String,
             file(row.source_a),
             file(row.source_b),
             (row.species_a ?: "unknown") as String,
             (row.species_b ?: "unknown") as String,
+            ortholog_convert_script
+        )
+    }
+
+    ORTHOLOG_CONVERT_PAIR(ch_rds_for_ortholog)
+
+    ch_rds_converted = ORTHOLOG_CONVERT_PAIR.out.rds_pair
+
+    ch_harmony = ch_rds_converted.map { sample_id, input_a, input_b, species_a, species_b ->
+        tuple(
+            sample_id,
+            input_a,
+            input_b,
+            species_a,
+            species_b,
             harmony_script
         )
     }
-    ch_seurat4 = ch_checked.map { row ->
+    ch_seurat4 = ch_rds_converted.map { sample_id, input_a, input_b, species_a, species_b ->
         tuple(
-            row.sample as String,
-            file(row.source_a),
-            file(row.source_b),
-            (row.species_a ?: "unknown") as String,
-            (row.species_b ?: "unknown") as String,
+            sample_id,
+            input_a,
+            input_b,
+            species_a,
+            species_b,
             seurat4_script
         )
     }
-    ch_fastmnn = ch_checked.map { row ->
+    ch_fastmnn = ch_rds_converted.map { sample_id, input_a, input_b, species_a, species_b ->
         tuple(
-            row.sample as String,
-            file(row.source_a),
-            file(row.source_b),
-            (row.species_a ?: "unknown") as String,
-            (row.species_b ?: "unknown") as String,
+            sample_id,
+            input_a,
+            input_b,
+            species_a,
+            species_b,
             fastmnn_script
         )
     }
@@ -69,18 +92,13 @@ workflow NFCORE_BASE {
         )
     }
 
-    ch_bbknn_rds_convert = ch_checked
-        .filter { row ->
-            row.source_a.toString().toLowerCase().endsWith('.rds') &&
-            row.source_b.toString().toLowerCase().endsWith('.rds')
-        }
-        .map { row ->
+    ch_bbknn_rds_convert = ch_rds_converted.map { sample_id, input_a, input_b, species_a, species_b ->
         tuple(
-            row.sample as String,
-            file(row.source_a),
-            file(row.source_b),
-            (row.species_a ?: "unknown") as String,
-            (row.species_b ?: "unknown") as String,
+            sample_id,
+            input_a,
+            input_b,
+            species_a,
+            species_b,
             seurat_to_anndata_script
         )
     }
@@ -126,6 +144,7 @@ workflow NFCORE_BASE {
 
     emit:
     report_files = MAKE_RUN_METADATA.out.report
+    ortholog_reports = ORTHOLOG_CONVERT_PAIR.out.report
     harmony_reports = HARMONY_INTEGRATION.out.report
     harmony_pca = HARMONY_INTEGRATION.out.pca
     harmony_rds = HARMONY_INTEGRATION.out.integrated_rds

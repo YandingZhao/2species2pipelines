@@ -1,2 +1,2 @@
 sample,species_a,species_b,source_a,source_b
-task4_demo,canine,human,tests/data/data/Dog_pt15_Immune_Lymphoid_diet.rds,tests/data/data/Human_X00004_Immune_Lymphoid_diet.rds
+task4_demo,dog,human,tests/data/data/Dog_pt15_Immune_Lymphoid_diet.rds,tests/data/data/Human_X00004_Immune_Lymphoid_diet.rds
