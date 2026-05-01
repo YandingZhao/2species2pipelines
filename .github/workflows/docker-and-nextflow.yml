@@ -34,6 +34,22 @@ jobs:
           tags: local/harmony-module:ci
           load: true
 
+      - name: Build bbknn image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.bbknn
+          tags: local/bbknn-module:ci
+          load: true
+
+      - name: Generate BBKNN test data in container
+        run: |
+          docker run --rm \
+            -v "$PWD":/work \
+            -w /work \
+            local/bbknn-module:ci \
+            python scripts/generate_bbknn_test_data.py
+
       - name: Install Nextflow
         run: |
           curl -s https://get.nextflow.io | bash
@@ -44,11 +60,13 @@ jobs:
           nextflow run . -profile test,docker -stub-run \
             --harmony_container local/harmony-module:ci \
             --seurat4_container local/harmony-module:ci \
-            --fastmnn_container local/harmony-module:ci
+            --fastmnn_container local/harmony-module:ci \
+            --bbknn_container local/bbknn-module:ci
 
       - name: Nextflow test
         run: |
           nextflow run . -profile test,docker \
             --harmony_container local/harmony-module:ci \
             --seurat4_container local/harmony-module:ci \
-            --fastmnn_container local/harmony-module:ci
+            --fastmnn_container local/harmony-module:ci \
+            --bbknn_container local/bbknn-module:ci

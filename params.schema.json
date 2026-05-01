@@ -8,6 +8,10 @@
       "type": "string",
       "description": "Path to a CSV samplesheet with headers: sample,species_a,species_b,source_a,source_b"
     },
+    "bbknn_input": {
+      "type": "string",
+      "description": "Path to a CSV BBKNN samplesheet with headers: sample,species_a,species_b,source_a,source_b (.h5ad inputs)"
+    },
     "outdir": {
       "type": "string",
       "description": "Directory where pipeline outputs are written"
@@ -23,6 +27,10 @@
     "fastmnn_container": {
       "type": "string",
       "description": "Container image for the fastMNN module process"
+    },
+    "bbknn_container": {
+      "type": "string",
+      "description": "Container image for the BBKNN module process"
     }
   },
   "required": [
