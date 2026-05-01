@@ -23,6 +23,10 @@
     "fastmnn_container": {
       "type": "string",
       "description": "Container image for the fastMNN module process"
+    },
+    "bbknn_container": {
+      "type": "string",
+      "description": "Container image for the BBKNN module process"
     }
   },
   "required": [
