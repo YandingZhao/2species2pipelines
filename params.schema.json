@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "$id": "https://example.com/2species-to-pipelines/params.schema.json",
+  "title": "2species-to-pipelines parameters",
+  "type": "object",
+  "properties": {
+    "input": {
+      "type": "string",
+      "description": "Path to a CSV samplesheet with headers: sample,species_a,species_b,source_a,source_b"
+    },
+    "outdir": {
+      "type": "string",
+      "description": "Directory where pipeline outputs are written"
+    },
+    "harmony_container": {
+      "type": "string",
+      "description": "Container image for the Harmony module process"
+    }
+  },
+  "required": [
+    "input",
+    "outdir"
+  ]
+}

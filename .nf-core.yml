@@ -1,0 +1,6 @@
+repository_type: pipeline
+lint:
+  files_exist:
+    - main.nf
+    - nextflow.config
+    - README.md
