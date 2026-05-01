@@ -1,0 +1,17 @@
+# Minimal conda environment for running R integration tests in CI.
+# Uses unpinned versions so conda can resolve dependencies freely.
+# Requires r-base >=4.1 because r-harmony 1.x requires r-base >=4.1.
+name: benchmark_R_test
+channels:
+  - conda-forge
+dependencies:
+  - r-base>=4.1,<4.2
+  - r-seurat>=4,<5
+  - r-seuratobject
+  - r-harmony
+  - r-data.table
+  - r-nbclust
+  - r-mclust
+  - r-cowplot
+  - r-matrix
+  - r-hdf5r
