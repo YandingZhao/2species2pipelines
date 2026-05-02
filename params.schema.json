@@ -31,6 +31,10 @@
     "scanorama_container": {
       "type": "string",
       "description": "Container image for the Scanorama module process"
+    },
+    "scvi_container": {
+      "type": "string",
+      "description": "Container image for the scVI module process"
     }
   },
   "required": [
