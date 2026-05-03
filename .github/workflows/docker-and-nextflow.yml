@@ -1,4 +1,4 @@
-name: docker-build-and-nextflow-test
+name: CI
 
 on:
   push:
@@ -9,13 +9,98 @@ on:
       - main
   workflow_dispatch:
 
-jobs:
-  harmony-docker-and-nextflow-smoke:
-    runs-on: ubuntu-latest
+env:
+  REGISTRY: ghcr.io
+  R_IMAGE: ghcr.io/break-through-cancer/2species2pipelines/r-methods
+  PYTHON_IMAGE: ghcr.io/break-through-cancer/2species2pipelines/python-methods
 
+jobs:
+
+  # ── Detect which Dockerfiles changed ────────────────────────────────────────
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      r: ${{ steps.filter.outputs.r }}
+      python: ${{ steps.filter.outputs.python }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            r:
+              - 'docker/Dockerfile-r'
+            python:
+              - 'docker/Dockerfile-python'
+
+  # ── Build & push R image (only when Dockerfile-r changed) ───────────────────
+  build-r:
+    needs: changes
+    if: needs.changes.outputs.r == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build and push r-methods image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile-r
+          push: true
+          tags: ${{ env.R_IMAGE }}:latest,${{ env.R_IMAGE }}:${{ github.sha }}
+
+  # ── Build & push Python image (only when Dockerfile-python changed) ─────────
+  build-python:
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build and push python-methods image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile-python
+          push: true
+          tags: ${{ env.PYTHON_IMAGE }}:latest,${{ env.PYTHON_IMAGE }}:${{ github.sha }}
+
+  # ── Nextflow tests (always runs; uses published ghcr images) ────────────────
+  nextflow-test:
+    needs: [build-r, build-python]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -23,24 +108,12 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build harmony image
-        uses: docker/build-push-action@v6
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
         with:
-          context: .
-          file: docker/Dockerfile
-          tags: local/harmony-module:ci
-          load: true
-
-      - name: Build bbknn image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: docker/Dockerfile.bbknn
-          tags: local/bbknn-module:ci
-          load: true
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Install Nextflow
         run: |
@@ -50,19 +123,19 @@ jobs:
       - name: Nextflow smoke test (stub)
         run: |
           nextflow run . -profile test,docker -stub-run \
-            --harmony_container local/harmony-module:ci \
-            --seurat4_container local/harmony-module:ci \
-            --fastmnn_container local/harmony-module:ci \
-            --bbknn_container local/bbknn-module:ci \
-            --scanorama_container local/bbknn-module:ci \
-            --scvi_container local/bbknn-module:ci
+            --harmony_container ${{ env.R_IMAGE }}:latest \
+            --seurat4_container ${{ env.R_IMAGE }}:latest \
+            --fastmnn_container ${{ env.R_IMAGE }}:latest \
+            --bbknn_container ${{ env.PYTHON_IMAGE }}:latest \
+            --scanorama_container ${{ env.PYTHON_IMAGE }}:latest \
+            --scvi_container ${{ env.PYTHON_IMAGE }}:latest
 
       - name: Nextflow test
         run: |
           nextflow run . -profile test,docker \
-            --harmony_container local/harmony-module:ci \
-            --seurat4_container local/harmony-module:ci \
-            --fastmnn_container local/harmony-module:ci \
-            --bbknn_container local/bbknn-module:ci \
-            --scanorama_container local/bbknn-module:ci \
-            --scvi_container local/bbknn-module:ci
+            --harmony_container ${{ env.R_IMAGE }}:latest \
+            --seurat4_container ${{ env.R_IMAGE }}:latest \
+            --fastmnn_container ${{ env.R_IMAGE }}:latest \
+            --bbknn_container ${{ env.PYTHON_IMAGE }}:latest \
+            --scanorama_container ${{ env.PYTHON_IMAGE }}:latest \
+            --scvi_container ${{ env.PYTHON_IMAGE }}:latest
