@@ -140,32 +140,45 @@ jobs:
           curl -s https://get.nextflow.io | bash
           sudo mv nextflow /usr/local/bin/nextflow
 
-      - name: Select container tag (PR vs main)
+      - name: Select container tags (fallback to latest when skipped)
         id: img
         shell: bash
         run: |
+          r_tag="latest"
+          python_tag="latest"
+
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "tag=pr-${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=latest" >> "$GITHUB_OUTPUT"
+            pr_tag="pr-${{ github.event.pull_request.number }}"
+
+            # Use PR tag only when the corresponding image was rebuilt in this run.
+            if [[ "${{ needs.build-r.result }}" == "success" ]]; then
+              r_tag="$pr_tag"
+            fi
+
+            if [[ "${{ needs.build-python.result }}" == "success" ]]; then
+              python_tag="$pr_tag"
+            fi
           fi
+
+          echo "r_tag=$r_tag" >> "$GITHUB_OUTPUT"
+          echo "python_tag=$python_tag" >> "$GITHUB_OUTPUT"
 
       - name: Nextflow smoke test (stub)
         run: |
           nextflow run . -profile test,docker -stub-run \
-            --harmony_container ${{ env.R_IMAGE }}:${{ steps.img.outputs.tag }} \
-            --seurat4_container ${{ env.R_IMAGE }}:${{ steps.img.outputs.tag }} \
-            --fastmnn_container ${{ env.R_IMAGE }}:${{ steps.img.outputs.tag }} \
-            --bbknn_container ${{ env.PYTHON_IMAGE }}:${{ steps.img.outputs.tag }} \
-            --scanorama_container ${{ env.PYTHON_IMAGE }}:${{ steps.img.outputs.tag }} \
-            --scvi_container ${{ env.PYTHON_IMAGE }}:${{ steps.img.outputs.tag }}
+            --harmony_container ${{ env.R_IMAGE }}:${{ steps.img.outputs.r_tag }} \
+            --seurat4_container ${{ env.R_IMAGE }}:${{ steps.img.outputs.r_tag }} \
+            --fastmnn_container ${{ env.R_IMAGE }}:${{ steps.img.outputs.r_tag }} \
+            --bbknn_container ${{ env.PYTHON_IMAGE }}:${{ steps.img.outputs.python_tag }} \
+            --scanorama_container ${{ env.PYTHON_IMAGE }}:${{ steps.img.outputs.python_tag }} \
+            --scvi_container ${{ env.PYTHON_IMAGE }}:${{ steps.img.outputs.python_tag }}
 
       - name: Nextflow test
         run: |
           nextflow run . -profile test,docker \
-            --harmony_container ${{ env.R_IMAGE }}:${{ steps.img.outputs.tag }} \
-            --seurat4_container ${{ env.R_IMAGE }}:${{ steps.img.outputs.tag }} \
-            --fastmnn_container ${{ env.R_IMAGE }}:${{ steps.img.outputs.tag }} \
-            --bbknn_container ${{ env.PYTHON_IMAGE }}:${{ steps.img.outputs.tag }} \
-            --scanorama_container ${{ env.PYTHON_IMAGE }}:${{ steps.img.outputs.tag }} \
-            --scvi_container ${{ env.PYTHON_IMAGE }}:${{ steps.img.outputs.tag }}
+            --harmony_container ${{ env.R_IMAGE }}:${{ steps.img.outputs.r_tag }} \
+            --seurat4_container ${{ env.R_IMAGE }}:${{ steps.img.outputs.r_tag }} \
+            --fastmnn_container ${{ env.R_IMAGE }}:${{ steps.img.outputs.r_tag }} \
+            --bbknn_container ${{ env.PYTHON_IMAGE }}:${{ steps.img.outputs.python_tag }} \
+            --scanorama_container ${{ env.PYTHON_IMAGE }}:${{ steps.img.outputs.python_tag }} \
+            --scvi_container ${{ env.PYTHON_IMAGE }}:${{ steps.img.outputs.python_tag }}
