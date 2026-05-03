@@ -18,7 +18,7 @@ RUN pip install --no-cache-dir --default-timeout=300 --retries=10 \
     pandas==2.2.3 \
     scanorama==1.7.4 \
     scanpy==1.10.3 \
-    scgen==0.6.1 \
+    scgen==2.1.0 \
     scvi-tools==1.1.6 \
     scipy==1.13.1 \
     scikit-learn==1.5.2
