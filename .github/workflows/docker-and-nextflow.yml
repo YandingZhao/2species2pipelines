@@ -34,6 +34,14 @@ jobs:
           tags: local/harmony-module:ci
           load: true
 
+      - name: Build bbknn image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.bbknn
+          tags: local/bbknn-module:ci
+          load: true
+
       - name: Install Nextflow
         run: |
           curl -s https://get.nextflow.io | bash
@@ -45,9 +53,9 @@ jobs:
             --harmony_container local/harmony-module:ci \
             --seurat4_container local/harmony-module:ci \
             --fastmnn_container local/harmony-module:ci \
-            --bbknn_container local/harmony-module:ci \
-            --scanorama_container local/harmony-module:ci \
-            --scvi_container local/harmony-module:ci
+            --bbknn_container local/bbknn-module:ci \
+            --scanorama_container local/bbknn-module:ci \
+            --scvi_container local/bbknn-module:ci
 
       - name: Nextflow test
         run: |
@@ -55,6 +63,6 @@ jobs:
             --harmony_container local/harmony-module:ci \
             --seurat4_container local/harmony-module:ci \
             --fastmnn_container local/harmony-module:ci \
-            --bbknn_container local/harmony-module:ci \
-            --scanorama_container local/harmony-module:ci \
-            --scvi_container local/harmony-module:ci
+            --bbknn_container local/bbknn-module:ci \
+            --scanorama_container local/bbknn-module:ci \
+            --scvi_container local/bbknn-module:ci

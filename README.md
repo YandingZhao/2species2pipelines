@@ -31,7 +31,8 @@ Key files:
 - `scripts/run_scvi_module.py` as the scVI runner inspired by benchmark scripts
 - `scripts/run_ortholog_convert_pair.R` for species_a -> species_b ortholog conversion on Seurat `.rds` inputs
 - `scripts/run_seurat_to_anndata_pair.R` for converting Seurat pair inputs to `.h5ad`
-- `docker/Dockerfile` as the single runtime image for all integration modules
+- `docker/Dockerfile` as the integration runtime image
+- `docker/Dockerfile.bbknn` as the shared Python runtime image for BBKNN, Scanorama, and scVI
 - `.github/workflows/docker-and-nextflow.yml` as CI build and smoke test
 - `nextflow.config` with `standard`, `test`, and `docker` profiles
 - `conf/base.config` and `conf/test.config` for profile-specific settings
@@ -51,13 +52,17 @@ docker build -t local/harmony-module:dev -f docker/Dockerfile .
 ```
 
 ```bash
+docker build -t local/bbknn-module:dev -f docker/Dockerfile.bbknn .
+```
+
+```bash
 nextflow run . -profile test,docker -stub-run \
 	--harmony_container local/harmony-module:dev \
 	--seurat4_container local/harmony-module:dev \
 	--fastmnn_container local/harmony-module:dev \
-	--bbknn_container local/harmony-module:dev \
-	--scanorama_container local/harmony-module:dev \
-	--scvi_container local/harmony-module:dev
+	--bbknn_container local/bbknn-module:dev \
+	--scanorama_container local/bbknn-module:dev \
+	--scvi_container local/bbknn-module:dev
 ```
 
 Run integration modules without stub:
@@ -67,9 +72,9 @@ nextflow run . -profile docker,test \
 	--harmony_container local/harmony-module:dev \
 	--seurat4_container local/harmony-module:dev \
 	--fastmnn_container local/harmony-module:dev \
-	--bbknn_container local/harmony-module:dev \
-	--scanorama_container local/harmony-module:dev \
-	--scvi_container local/harmony-module:dev
+	--bbknn_container local/bbknn-module:dev \
+	--scanorama_container local/bbknn-module:dev \
+	--scvi_container local/bbknn-module:dev
 ```
 
 Outputs are written to `results/` (or `tests/results/` with the test profile).
