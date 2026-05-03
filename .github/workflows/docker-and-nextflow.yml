@@ -171,7 +171,8 @@ jobs:
             --fastmnn_container ${{ env.R_IMAGE }}:${{ steps.img.outputs.r_tag }} \
             --bbknn_container ${{ env.PYTHON_IMAGE }}:${{ steps.img.outputs.python_tag }} \
             --scanorama_container ${{ env.PYTHON_IMAGE }}:${{ steps.img.outputs.python_tag }} \
-            --scvi_container ${{ env.PYTHON_IMAGE }}:${{ steps.img.outputs.python_tag }}
+            --scvi_container ${{ env.PYTHON_IMAGE }}:${{ steps.img.outputs.python_tag }} \
+            --scgen_container ${{ env.PYTHON_IMAGE }}:${{ steps.img.outputs.python_tag }}
 
       - name: Nextflow test
         run: |
@@ -181,4 +182,5 @@ jobs:
             --fastmnn_container ${{ env.R_IMAGE }}:${{ steps.img.outputs.r_tag }} \
             --bbknn_container ${{ env.PYTHON_IMAGE }}:${{ steps.img.outputs.python_tag }} \
             --scanorama_container ${{ env.PYTHON_IMAGE }}:${{ steps.img.outputs.python_tag }} \
-            --scvi_container ${{ env.PYTHON_IMAGE }}:${{ steps.img.outputs.python_tag }}
+            --scvi_container ${{ env.PYTHON_IMAGE }}:${{ steps.img.outputs.python_tag }} \
+            --scgen_container ${{ env.PYTHON_IMAGE }}:${{ steps.img.outputs.python_tag }}

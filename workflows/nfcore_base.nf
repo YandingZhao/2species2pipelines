@@ -7,6 +7,7 @@ include { FASTMNN_INTEGRATION } from '../modules/local/fastmnn_integration'
 include { BBKNN_INTEGRATION } from '../modules/local/bbknn_integration'
 include { SCANORAMA_INTEGRATION } from '../modules/local/scanorama_integration'
 include { SCVI_INTEGRATION } from '../modules/local/scvi_integration'
+include { SCGEN_INTEGRATION } from '../modules/local/scgen_integration'
 include { SEURAT_TO_ANNDATA_PAIR } from '../modules/local/seurat_to_anndata_pair'
 include { ORTHOLOG_CONVERT_PAIR } from '../modules/local/ortholog_convert_pair'
 
@@ -25,6 +26,7 @@ workflow NFCORE_BASE {
     bbknn_script = file("${projectDir}/scripts/run_bbknn_module.py")
     scanorama_script = file("${projectDir}/scripts/run_scanorama_module.py")
     scvi_script = file("${projectDir}/scripts/run_scvi_module.py")
+    scgen_script = file("${projectDir}/scripts/run_scgen_module.py")
     seurat_to_anndata_script = file("${projectDir}/scripts/run_seurat_to_anndata_pair.R")
     ortholog_convert_script = file("${projectDir}/scripts/run_ortholog_convert_pair.R")
 
@@ -160,6 +162,29 @@ workflow NFCORE_BASE {
     ch_scvi = ch_scvi_h5ad.mix(ch_scvi_from_rds)
         .ifEmpty { error "No valid scVI inputs found. Provide both inputs as .h5ad or both as .rds in ${params.input}" }
 
+    ch_scgen_h5ad = ch_checked
+        .filter { row ->
+            row.source_a.toString().toLowerCase().endsWith('.h5ad') &&
+            row.source_b.toString().toLowerCase().endsWith('.h5ad')
+        }
+        .map { row ->
+        tuple(
+            row.sample as String,
+            file(row.source_a),
+            file(row.source_b),
+            (row.species_a ?: "unknown") as String,
+            (row.species_b ?: "unknown") as String,
+            scgen_script
+        )
+    }
+
+    ch_scgen_from_rds = SEURAT_TO_ANNDATA_PAIR.out.bbknn_input.map { sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b ->
+        tuple(sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b, scgen_script)
+    }
+
+    ch_scgen = ch_scgen_h5ad.mix(ch_scgen_from_rds)
+        .ifEmpty { error "No valid scGen inputs found. Provide both inputs as .h5ad or both as .rds in ${params.input}" }
+
     MAKE_RUN_METADATA(ch_reports)
     HARMONY_INTEGRATION(ch_harmony)
     SEURAT4_INTEGRATION(ch_seurat4)
@@ -167,6 +192,7 @@ workflow NFCORE_BASE {
     BBKNN_INTEGRATION(ch_bbknn)
     SCANORAMA_INTEGRATION(ch_scanorama)
     SCVI_INTEGRATION(ch_scvi)
+    SCGEN_INTEGRATION(ch_scgen)
 
     emit:
     report_files = MAKE_RUN_METADATA.out.report
@@ -189,4 +215,7 @@ workflow NFCORE_BASE {
     scvi_reports = SCVI_INTEGRATION.out.report
     scvi_pca = SCVI_INTEGRATION.out.pca
     scvi_h5ad = SCVI_INTEGRATION.out.integrated_h5ad
+    scgen_reports = SCGEN_INTEGRATION.out.report
+    scgen_pca = SCGEN_INTEGRATION.out.pca
+    scgen_h5ad = SCGEN_INTEGRATION.out.integrated_h5ad
 }
