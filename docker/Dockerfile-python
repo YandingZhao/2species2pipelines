@@ -23,4 +23,16 @@ RUN pip install --no-cache-dir --default-timeout=300 --retries=10 \
     scipy==1.13.1 \
     scikit-learn==1.5.2
 
+# scgen 2.x was written against an older scvi-tools API. Two private symbols
+# were removed/renamed in scvi-tools 1.x; add compatibility shims so imports resolve.
+#   1. scvi._compat.Literal  → typing.Literal (dropped when Python 3.7 support ended)
+#   2. scvi.module.base.LossRecorder → renamed to LossOutput in scvi-tools 1.0
+RUN python -c "\
+import scvi, os; \
+cp = os.path.join(os.path.dirname(scvi.__file__), '_compat.py'); \
+open(cp, 'w').write('from typing import Literal\n__all__ = [\"Literal\"]\n'); \
+bp = os.path.join(os.path.dirname(scvi.__file__), 'module', 'base', '__init__.py'); \
+open(bp, 'a').write('\ntry:\n    from ._base_module import LossOutput as LossRecorder\nexcept ImportError:\n    pass\n')" \
+    && python -c "import scgen; print('scgen', scgen.__version__, 'OK')"
+
 CMD ["/bin/bash"]
