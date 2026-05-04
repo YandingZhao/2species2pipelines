@@ -13,7 +13,7 @@ This repository now includes a minimal nf-core style Nextflow scaffold.
 
 Key files:
 - `main.nf` as the workflow entrypoint
-- `workflows/nfcore_base.nf` as the base workflow definition
+- `workflows/integration.nf` as the base workflow definition
 - `modules/local/make_run_metadata.nf` as a local example process
 - `modules/local/harmony_integration.nf` as the first integration module
 - `modules/local/seurat4_integration.nf` as the second integration module
