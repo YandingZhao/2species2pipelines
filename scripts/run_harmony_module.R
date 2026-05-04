@@ -48,7 +48,7 @@ harmony_res <- as.data.frame(Embeddings(merged, reduction = "harmony"))
 harmony_res$cell <- rownames(harmony_res)
 harmony_res <- harmony_res[, c("cell", setdiff(colnames(harmony_res), "cell"))]
 
-pca_out <- paste0(sample_id, "_harmony_pca.tsv")
+pca_out <- paste0(sample_id, "_harmony_embedding.tsv")
 rds_out <- paste0(sample_id, "_harmony_integration.rds")
 report_out <- paste0(sample_id, "_harmony_report.txt")
 

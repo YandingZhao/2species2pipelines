@@ -1,7 +1,7 @@
 nextflow.enable.dsl = 2
 
-include { NFCORE_BASE } from './workflows/nfcore_base'
+include { INTEGRATE } from './workflows/integrate'
 
 workflow {
-    NFCORE_BASE()
+    INTEGRATE()
 }

@@ -81,7 +81,7 @@ def main():
     )
     pca.index.name = "cell"
 
-    pca_file = f"{args.sample_id}_scanorama_pca.tsv"
+    pca_file = f"{args.sample_id}_scanorama_embedding.tsv"
     h5ad_file = f"{args.sample_id}_scanorama_integration.h5ad"
     report_file = f"{args.sample_id}_scanorama_report.txt"
 

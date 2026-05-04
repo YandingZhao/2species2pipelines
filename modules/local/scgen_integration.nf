@@ -6,7 +6,7 @@ process SCGEN_INTEGRATION {
 
     output:
     path "${sample_id}_scgen_report.txt", emit: report
-    path "${sample_id}_scgen_pca.tsv", emit: pca
+    path "${sample_id}_scgen_embedding.tsv", emit: embedding
     path "${sample_id}_scgen_integration.h5ad", emit: integrated_h5ad
 
     script:
@@ -26,8 +26,8 @@ process SCGEN_INTEGRATION {
     printf "species_b: ${species_b}\n" >> ${sample_id}_scgen_report.txt
     printf "status: stub_run\n" >> ${sample_id}_scgen_report.txt
 
-    printf "cell\tPC1\tPC2\n" > ${sample_id}_scgen_pca.tsv
-    printf "stub_cell_1\t0.0\t0.0\n" >> ${sample_id}_scgen_pca.tsv
+    printf "cell\tPC1\tPC2\n" > ${sample_id}_scgen_embedding.tsv
+    printf "stub_cell_1\t0.0\t0.0\n" >> ${sample_id}_scgen_embedding.tsv
 
     printf "stub scgen integration placeholder\n" > ${sample_id}_scgen_integration.h5ad
     """

@@ -105,7 +105,7 @@ def main():
     corrected_adata.obsm["X_pca"] = latent
     corrected_adata.obs["orig.ident"] = corrected_adata.obs["batch"]
 
-    pca_file = f"{args.sample_id}_scgen_pca.tsv"
+    pca_file = f"{args.sample_id}_scgen_embedding.tsv"
     h5ad_file = f"{args.sample_id}_scgen_integration.h5ad"
     report_file = f"{args.sample_id}_scgen_report.txt"
 

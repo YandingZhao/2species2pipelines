@@ -82,7 +82,7 @@ def main():
     )
     pca.index.name = "cell"
 
-    pca_file = f"{args.sample_id}_bbknn_pca.tsv"
+    pca_file = f"{args.sample_id}_bbknn_embedding.tsv"
     h5ad_file = f"{args.sample_id}_bbknn_integration.h5ad"
     report_file = f"{args.sample_id}_bbknn_report.txt"
 

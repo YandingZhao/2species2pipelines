@@ -56,7 +56,7 @@ seurat_res <- as.data.frame(Embeddings(combined, reduction = "pca"))
 seurat_res$cell <- rownames(seurat_res)
 seurat_res <- seurat_res[, c("cell", setdiff(colnames(seurat_res), "cell"))]
 
-pca_out <- paste0(sample_id, "_seurat4_pca.tsv")
+pca_out <- paste0(sample_id, "_seurat4_embedding.tsv")
 rds_out <- paste0(sample_id, "_seurat4_integration.rds")
 report_out <- paste0(sample_id, "_seurat4_report.txt")
 
