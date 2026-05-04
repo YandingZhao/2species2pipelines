@@ -96,7 +96,7 @@ workflow INTEGRATE {
         )
     }
 
-    ch_bbknn_rds_convert = ch_rds_converted.map { sample_id, input_a, input_b, species_a, species_b ->
+    ch_rds_to_anndata = ch_rds_converted.map { sample_id, input_a, input_b, species_a, species_b ->
         tuple(
             sample_id,
             input_a,
@@ -107,9 +107,9 @@ workflow INTEGRATE {
         )
     }
 
-    SEURAT_TO_ANNDATA_PAIR(ch_bbknn_rds_convert)
+    SEURAT_TO_ANNDATA_PAIR(ch_rds_to_anndata)
 
-    ch_bbknn_from_rds = SEURAT_TO_ANNDATA_PAIR.out.bbknn_input.map { sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b ->
+    ch_bbknn_from_rds = SEURAT_TO_ANNDATA_PAIR.out.anndata_pairs.map { sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b ->
         tuple(sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b, bbknn_script)
     }
 
@@ -132,7 +132,7 @@ workflow INTEGRATE {
         )
     }
 
-    ch_scanorama_from_rds = SEURAT_TO_ANNDATA_PAIR.out.bbknn_input.map { sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b ->
+    ch_scanorama_from_rds = SEURAT_TO_ANNDATA_PAIR.out.anndata_pairs.map { sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b ->
         tuple(sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b, scanorama_script)
     }
 
@@ -155,7 +155,7 @@ workflow INTEGRATE {
         )
     }
 
-    ch_scvi_from_rds = SEURAT_TO_ANNDATA_PAIR.out.bbknn_input.map { sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b ->
+    ch_scvi_from_rds = SEURAT_TO_ANNDATA_PAIR.out.anndata_pairs.map { sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b ->
         tuple(sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b, scvi_script)
     }
 
@@ -178,7 +178,7 @@ workflow INTEGRATE {
         )
     }
 
-    ch_scgen_from_rds = SEURAT_TO_ANNDATA_PAIR.out.bbknn_input.map { sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b ->
+    ch_scgen_from_rds = SEURAT_TO_ANNDATA_PAIR.out.anndata_pairs.map { sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b ->
         tuple(sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b, scgen_script)
     }
 

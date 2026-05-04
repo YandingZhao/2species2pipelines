@@ -103,8 +103,8 @@ input_a <- get_arg("input_a")
 input_b <- get_arg("input_b")
 sample_id <- get_arg("sample_id")
 
-output_a <- paste0(sample_id, "_a.h5ad")
-output_b <- paste0(sample_id, "_b.h5ad")
+output_a <- paste0(gsub("\\.rds$", "", basename(input_a)), ".h5ad")
+output_b <- paste0(gsub("\\.rds$", "", basename(input_b)), ".h5ad")
 
 convert_one(input_a, output_a)
 convert_one(input_b, output_b)
