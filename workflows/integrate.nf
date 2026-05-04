@@ -11,7 +11,7 @@ include { SCGEN_INTEGRATION } from '../modules/local/scgen_integration'
 include { SEURAT_TO_ANNDATA_PAIR } from '../modules/local/seurat_to_anndata_pair'
 include { ORTHOLOG_CONVERT_PAIR } from '../modules/local/ortholog_convert_pair'
 
-workflow NFCORE_BASE {
+workflow INTEGRATE {
     main:
     ch_samples = channel
         .fromPath(params.input, checkIfExists: true)
@@ -198,24 +198,24 @@ workflow NFCORE_BASE {
     report_files = MAKE_RUN_METADATA.out.report
     ortholog_reports = ORTHOLOG_CONVERT_PAIR.out.report
     harmony_reports = HARMONY_INTEGRATION.out.report
-    harmony_pca = HARMONY_INTEGRATION.out.pca
+    harmony_pca = HARMONY_INTEGRATION.out.embedding
     harmony_rds = HARMONY_INTEGRATION.out.integrated_rds
     seurat4_reports = SEURAT4_INTEGRATION.out.report
-    seurat4_pca = SEURAT4_INTEGRATION.out.pca
+    seurat4_pca = SEURAT4_INTEGRATION.out.embedding
     seurat4_rds = SEURAT4_INTEGRATION.out.integrated_rds
     fastmnn_reports = FASTMNN_INTEGRATION.out.report
     fastmnn_embedding = FASTMNN_INTEGRATION.out.embedding
     fastmnn_rds = FASTMNN_INTEGRATION.out.integrated_rds
     bbknn_reports = BBKNN_INTEGRATION.out.report
-    bbknn_pca = BBKNN_INTEGRATION.out.pca
+    bbknn_embedding = BBKNN_INTEGRATION.out.embedding
     bbknn_h5ad = BBKNN_INTEGRATION.out.integrated_h5ad
     scanorama_reports = SCANORAMA_INTEGRATION.out.report
-    scanorama_pca = SCANORAMA_INTEGRATION.out.pca
+    scanorama_embedding = SCANORAMA_INTEGRATION.out.embedding
     scanorama_h5ad = SCANORAMA_INTEGRATION.out.integrated_h5ad
     scvi_reports = SCVI_INTEGRATION.out.report
-    scvi_pca = SCVI_INTEGRATION.out.pca
+    scvi_embedding = SCVI_INTEGRATION.out.embedding
     scvi_h5ad = SCVI_INTEGRATION.out.integrated_h5ad
     scgen_reports = SCGEN_INTEGRATION.out.report
-    scgen_pca = SCGEN_INTEGRATION.out.pca
+    scgen_embedding = SCGEN_INTEGRATION.out.embedding
     scgen_h5ad = SCGEN_INTEGRATION.out.integrated_h5ad
 }

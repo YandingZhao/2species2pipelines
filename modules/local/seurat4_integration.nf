@@ -6,7 +6,7 @@ process SEURAT4_INTEGRATION {
 
     output:
     path "${sample_id}_seurat4_report.txt", emit: report
-    path "${sample_id}_seurat4_pca.tsv", emit: pca
+    path "${sample_id}_seurat4_embedding.tsv", emit: embedding
     path "${sample_id}_seurat4_integration.rds", emit: integrated_rds
 
     script:
@@ -26,8 +26,8 @@ process SEURAT4_INTEGRATION {
     printf "species_b: ${species_b}\n" >> ${sample_id}_seurat4_report.txt
     printf "status: stub_run\n" >> ${sample_id}_seurat4_report.txt
 
-    printf "cell\tseurat4_1\tseurat4_2\n" > ${sample_id}_seurat4_pca.tsv
-    printf "stub_cell_1\t0.0\t0.0\n" >> ${sample_id}_seurat4_pca.tsv
+    printf "cell\tseurat4_1\tseurat4_2\n" > ${sample_id}_seurat4_embedding.tsv
+    printf "stub_cell_1\t0.0\t0.0\n" >> ${sample_id}_seurat4_embedding.tsv
     printf "stub seurat4 integration placeholder\n" > ${sample_id}_seurat4_integration.rds
     """
 }

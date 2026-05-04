@@ -83,7 +83,7 @@ def main():
     )
     pca.index.name = "cell"
 
-    pca_file = f"{args.sample_id}_scvi_pca.tsv"
+    pca_file = f"{args.sample_id}_scvi_embedding.tsv"
     h5ad_file = f"{args.sample_id}_scvi_integration.h5ad"
     report_file = f"{args.sample_id}_scvi_report.txt"
 

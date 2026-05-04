@@ -6,7 +6,7 @@ process HARMONY_INTEGRATION {
 
     output:
     path "${sample_id}_harmony_report.txt", emit: report
-    path "${sample_id}_harmony_pca.tsv", emit: pca
+    path "${sample_id}_harmony_embedding.tsv", emit: embedding
     path "${sample_id}_harmony_integration.rds", emit: integrated_rds
 
     script:
@@ -26,8 +26,8 @@ process HARMONY_INTEGRATION {
     printf "species_b: ${species_b}\n" >> ${sample_id}_harmony_report.txt
     printf "status: stub_run\n" >> ${sample_id}_harmony_report.txt
 
-    printf "cell\tharmony_1\tharmony_2\n" > ${sample_id}_harmony_pca.tsv
-    printf "stub_cell_1\t0.0\t0.0\n" >> ${sample_id}_harmony_pca.tsv
+    printf "cell\tharmony_1\tharmony_2\n" > ${sample_id}_harmony_embedding.tsv
+    printf "stub_cell_1\t0.0\t0.0\n" >> ${sample_id}_harmony_embedding.tsv
     printf "stub harmony integration placeholder\n" > ${sample_id}_harmony_integration.rds
     """
 }
