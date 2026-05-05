@@ -21,3 +21,24 @@ process SEURAT_TO_ANNDATA_PAIR {
     printf "stub h5ad from rds b\n" > ${input_b.baseName}.h5ad
     """
 }
+
+process SEURAT_TO_ANNDATA_SINGLE {
+    publishDir "${params.outdir}/seurat_conversion", mode: 'copy'
+
+    input:
+    tuple path(input_rds), path(converter_script)
+
+    output:
+    path("${input_rds.baseName}.h5ad"), emit: anndata_single
+
+    script:
+    """
+    Rscript ${converter_script} \
+      --input_a ${input_rds} \
+    """
+
+    stub:
+    """
+    printf "stub h5ad from rds single\n" > ${input_rds.baseName}.h5ad
+    """
+}

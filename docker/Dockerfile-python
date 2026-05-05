@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 LABEL maintainer="2species2pipelines"
 LABEL description="Python runtime for BBKNN, Scanorama, scVI, and scGen integration"
@@ -18,9 +18,10 @@ RUN pip install --no-cache-dir --default-timeout=300 --retries=10 \
     pandas==2.2.3 \
     scanorama==1.7.4 \
     scanpy==1.10.3 \
+    scib-metrics==0.5.9 \
     scgen==2.1.0 \
     scvi-tools==1.1.6 \
-    scipy==1.13.1 \
+    scipy==1.17.1 \
     scikit-learn==1.5.2
 
 # scgen 2.x was written against an older scvi-tools API. Two private symbols
