@@ -1,6 +1,5 @@
 process AGGREGATE_UNSCALED_METRICS {
         publishDir "${params.outdir}/evaluation", mode: 'copy'
-        tag "aggregate_unscaled_metrics"
 
         input:
         path metrics_files

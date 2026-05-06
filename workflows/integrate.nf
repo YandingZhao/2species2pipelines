@@ -11,8 +11,6 @@ include { SCGEN_INTEGRATION } from '../modules/local/scgen_integration'
 include { SEURAT_TO_ANNDATA_PAIR as SEURAT_INPUT_TO_ANNDATA } from '../modules/local/seurat_to_anndata'
 include { SEURAT_TO_ANNDATA_SINGLE as SEURAT_RESULT_TO_ANNDATA } from '../modules/local/seurat_to_anndata'
 include { ORTHOLOG_CONVERT_PAIR } from '../modules/local/ortholog_convert_pair'
-include { EVALUATE_INTEGRATION } from '../modules/local/evaluate_integration'
-include { AGGREGATE_UNSCALED_METRICS } from '../modules/local/aggregate_unscaled_metrics'
 
 workflow INTEGRATE {
     main:
@@ -23,7 +21,7 @@ workflow INTEGRATE {
     ch_checked = ch_samples.ifEmpty { error "No rows found in input samplesheet: ${params.input}" }
     ch_reports = ch_checked.map { row -> tuple(row.sample as String, row) }
 
-    // final results placehoders
+    // final results placeholders
     ch_rds_res = channel.empty()
     ch_h5ad_res = channel.empty()
 
@@ -36,8 +34,6 @@ workflow INTEGRATE {
     scgen_script = file("${projectDir}/scripts/run_scgen_module.py")
     seurat_to_anndata_script = file("${projectDir}/scripts/run_seurat_to_anndata.R")
     ortholog_convert_script = file("${projectDir}/scripts/run_ortholog_convert_pair.R")
-    evaluate_integration_script = file("${projectDir}/scripts/run_evaluate_integration.py")
-    aggregate_unscaled_metrics_script = file("${projectDir}/scripts/aggregate_unscaled_metrics.py")
 
     ch_rds_for_ortholog = ch_checked
         .filter { row ->
@@ -217,17 +213,6 @@ workflow INTEGRATE {
                     .mix(SCGEN_INTEGRATION.out.integrated_h5ad)
                     .mix(SEURAT_RESULT_TO_ANNDATA.out.anndata_single)
 
-    ch_h5ad_eval = ch_h5ad_res
-                    .map { integrated_h5ad ->
-                        tuple(integrated_h5ad, evaluate_integration_script)
-                    }
-
-    EVALUATE_INTEGRATION(ch_h5ad_eval)
-
-    ch_metrics_to_aggregate = EVALUATE_INTEGRATION.out.metrics.collect()
-    ch_aggregation_script = channel.value(aggregate_unscaled_metrics_script)
-    AGGREGATE_UNSCALED_METRICS(ch_metrics_to_aggregate, ch_aggregation_script)
-
     emit:
     report_files = MAKE_RUN_METADATA.out.report
     ortholog_reports = ORTHOLOG_CONVERT_PAIR.out.report
@@ -252,10 +237,5 @@ workflow INTEGRATE {
     scgen_reports = SCGEN_INTEGRATION.out.report
     scgen_embedding = SCGEN_INTEGRATION.out.embedding
     scgen_h5ad = SCGEN_INTEGRATION.out.integrated_h5ad
-    evaluation_reports = EVALUATE_INTEGRATION.out.report
-    evaluation_metrics = EVALUATE_INTEGRATION.out.metrics
-    evaluation_metrics_scaled = EVALUATE_INTEGRATION.out.metrics_scaled
-    evaluation_metrics_combined_report = AGGREGATE_UNSCALED_METRICS.out.report
-    evaluation_metrics_combined_long = AGGREGATE_UNSCALED_METRICS.out.long
-    evaluation_metrics_combined_image = AGGREGATE_UNSCALED_METRICS.out.image
+    integrated_h5ad = ch_h5ad_res
 }
