@@ -72,7 +72,6 @@ def main():
         raise ValueError("Scanorama did not produce X_scanorama embedding")
 
     embedding = adata_scanorama.obsm["X_scanorama"]
-    adata_scanorama.obsm["X_pca"] = embedding
 
     pca = pd.DataFrame(
         embedding,

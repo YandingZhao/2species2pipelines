@@ -74,7 +74,6 @@ def main():
     elapsed = time.time() - start
 
     adata_all.obsm["X_scvi"] = latent
-    adata_all.obsm["X_pca"] = latent
 
     pca = pd.DataFrame(
         latent,

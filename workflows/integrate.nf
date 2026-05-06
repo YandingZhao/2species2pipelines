@@ -8,7 +8,8 @@ include { BBKNN_INTEGRATION } from '../modules/local/bbknn_integration'
 include { SCANORAMA_INTEGRATION } from '../modules/local/scanorama_integration'
 include { SCVI_INTEGRATION } from '../modules/local/scvi_integration'
 include { SCGEN_INTEGRATION } from '../modules/local/scgen_integration'
-include { SEURAT_TO_ANNDATA_PAIR } from '../modules/local/seurat_to_anndata_pair'
+include { SEURAT_TO_ANNDATA_PAIR as SEURAT_INPUT_TO_ANNDATA } from '../modules/local/seurat_to_anndata'
+include { SEURAT_TO_ANNDATA_SINGLE as SEURAT_RESULT_TO_ANNDATA } from '../modules/local/seurat_to_anndata'
 include { ORTHOLOG_CONVERT_PAIR } from '../modules/local/ortholog_convert_pair'
 
 workflow INTEGRATE {
@@ -20,6 +21,10 @@ workflow INTEGRATE {
     ch_checked = ch_samples.ifEmpty { error "No rows found in input samplesheet: ${params.input}" }
     ch_reports = ch_checked.map { row -> tuple(row.sample as String, row) }
 
+    // final results placeholders
+    ch_rds_res = channel.empty()
+    ch_h5ad_res = channel.empty()
+
     harmony_script = file("${projectDir}/scripts/run_harmony_module.R")
     seurat4_script = file("${projectDir}/scripts/run_seurat4_module.R")
     fastmnn_script = file("${projectDir}/scripts/run_fastmnn_module.R")
@@ -27,7 +32,7 @@ workflow INTEGRATE {
     scanorama_script = file("${projectDir}/scripts/run_scanorama_module.py")
     scvi_script = file("${projectDir}/scripts/run_scvi_module.py")
     scgen_script = file("${projectDir}/scripts/run_scgen_module.py")
-    seurat_to_anndata_script = file("${projectDir}/scripts/run_seurat_to_anndata_pair.R")
+    seurat_to_anndata_script = file("${projectDir}/scripts/run_seurat_to_anndata.R")
     ortholog_convert_script = file("${projectDir}/scripts/run_ortholog_convert_pair.R")
 
     ch_rds_for_ortholog = ch_checked
@@ -107,9 +112,9 @@ workflow INTEGRATE {
         )
     }
 
-    SEURAT_TO_ANNDATA_PAIR(ch_rds_to_anndata)
+    SEURAT_INPUT_TO_ANNDATA(ch_rds_to_anndata)
 
-    ch_bbknn_from_rds = SEURAT_TO_ANNDATA_PAIR.out.anndata_pairs.map { sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b ->
+    ch_bbknn_from_rds = SEURAT_INPUT_TO_ANNDATA.out.anndata_pairs.map { sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b ->
         tuple(sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b, bbknn_script)
     }
 
@@ -132,7 +137,7 @@ workflow INTEGRATE {
         )
     }
 
-    ch_scanorama_from_rds = SEURAT_TO_ANNDATA_PAIR.out.anndata_pairs.map { sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b ->
+    ch_scanorama_from_rds = SEURAT_INPUT_TO_ANNDATA.out.anndata_pairs.map { sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b ->
         tuple(sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b, scanorama_script)
     }
 
@@ -155,7 +160,7 @@ workflow INTEGRATE {
         )
     }
 
-    ch_scvi_from_rds = SEURAT_TO_ANNDATA_PAIR.out.anndata_pairs.map { sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b ->
+    ch_scvi_from_rds = SEURAT_INPUT_TO_ANNDATA.out.anndata_pairs.map { sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b ->
         tuple(sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b, scvi_script)
     }
 
@@ -178,7 +183,7 @@ workflow INTEGRATE {
         )
     }
 
-    ch_scgen_from_rds = SEURAT_TO_ANNDATA_PAIR.out.anndata_pairs.map { sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b ->
+    ch_scgen_from_rds = SEURAT_INPUT_TO_ANNDATA.out.anndata_pairs.map { sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b ->
         tuple(sample_id, input_a_h5ad, input_b_h5ad, species_a, species_b, scgen_script)
     }
 
@@ -193,6 +198,20 @@ workflow INTEGRATE {
     SCANORAMA_INTEGRATION(ch_scanorama)
     SCVI_INTEGRATION(ch_scvi)
     SCGEN_INTEGRATION(ch_scgen)
+
+    ch_rds_res = HARMONY_INTEGRATION.out.integrated_rds
+                    .mix(SEURAT4_INTEGRATION.out.integrated_rds)
+                    .mix(FASTMNN_INTEGRATION.out.integrated_rds)
+                    .map {integrated_rds ->
+                         tuple(integrated_rds, seurat_to_anndata_script)
+                     }
+    SEURAT_RESULT_TO_ANNDATA(ch_rds_res)
+    
+    ch_h5ad_res = BBKNN_INTEGRATION.out.integrated_h5ad
+                    .mix(SCANORAMA_INTEGRATION.out.integrated_h5ad)
+                    .mix(SCVI_INTEGRATION.out.integrated_h5ad)
+                    .mix(SCGEN_INTEGRATION.out.integrated_h5ad)
+                    .mix(SEURAT_RESULT_TO_ANNDATA.out.anndata_single)
 
     emit:
     report_files = MAKE_RUN_METADATA.out.report
@@ -218,4 +237,5 @@ workflow INTEGRATE {
     scgen_reports = SCGEN_INTEGRATION.out.report
     scgen_embedding = SCGEN_INTEGRATION.out.embedding
     scgen_h5ad = SCGEN_INTEGRATION.out.integrated_h5ad
+    integrated_h5ad = ch_h5ad_res
 }

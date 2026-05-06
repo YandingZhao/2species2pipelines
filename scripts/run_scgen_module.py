@@ -102,7 +102,7 @@ def main():
     pca.index.name = "cell"
 
     # Store embedding so downstream evaluation can find it.
-    corrected_adata.obsm["X_pca"] = latent
+    corrected_adata.obsm["X_scgen"] = latent
     corrected_adata.obs["orig.ident"] = corrected_adata.obs["batch"]
 
     pca_file = f"{args.sample_id}_scgen_embedding.tsv"
