@@ -106,8 +106,8 @@ def main() -> None:
     raw_results = benchmarker.get_results(min_max_scale=False)
     scaled_results = benchmarker.get_results(min_max_scale=True)
 
-    raw_results.to_csv(metrics_path, sep="\t")
-    scaled_results.to_csv(scaled_metrics_path, sep="\t")
+    raw_results.transpose().to_csv(metrics_path, sep="\t")
+    scaled_results.transpose().to_csv(scaled_metrics_path, sep="\t")
 
     with open(report_path, "w", encoding="utf-8") as handle:
         handle.write("status: ok\n")

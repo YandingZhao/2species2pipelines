@@ -22,6 +22,7 @@ Key files:
 - `modules/local/scanorama_integration.nf` as the second Python integration module
 - `modules/local/scvi_integration.nf` as the third Python integration module
 - `modules/local/evaluate_integration.nf` for scIB-metrics evaluation of integrated `.h5ad` outputs
+- `modules/local/aggregate_unscaled_metrics.nf` for combining unscaled scIB metrics into one report table
 - `modules/local/ortholog_convert_pair.nf` as the first preprocessing step for cross-species gene harmonization
 - `modules/local/seurat_to_anndata_pair.nf` for automatic Seurat `.rds` to `.h5ad` conversion for BBKNN inputs
 - `scripts/run_harmony_module.R` as the Harmony runner inspired by benchmark scripts
@@ -31,6 +32,8 @@ Key files:
 - `scripts/run_scanorama_module.py` as the Scanorama runner inspired by benchmark scripts
 - `scripts/run_scvi_module.py` as the scVI runner inspired by benchmark scripts
 - `scripts/run_evaluate_integration.py` for scIB-metrics benchmarking on integrated outputs
+- `scripts/aggregate_unscaled_metrics.py` for consolidating unscaled per-integration metrics reports
+	and rendering a publication-style summary figure
 - `scripts/run_ortholog_convert_pair.R` for species_a -> species_b ortholog conversion on Seurat `.rds` inputs
 - `scripts/run_seurat_to_anndata_pair.R` for converting Seurat pair inputs to `.h5ad`
 - `docker/Dockerfile-r` as the R integration runtime image (Harmony, Seurat4, fastMNN, ortholog conversion, Seurat→h5ad)
@@ -74,6 +77,9 @@ Integration benchmark outputs are written to `results/evaluation/` (or `tests/re
 - `<integration_basename>_scib_report.txt`
 - `<integration_basename>_scib_metrics.tsv`
 - `<integration_basename>_scib_metrics_scaled.tsv`
+- `combined_unscaled_metrics_report.tsv`
+- `combined_unscaled_metrics_long.tsv`
+- `combined_unscaled_metrics_report.png`
 
 For `.rds` inputs, ortholog conversion is the first step for all integration modules.
 Gene symbols from `species_a` are converted to `species_b` with `orthogene` (`non121_strategy=drop_both_species`, `method=gprofiler`), then both inputs are restricted to shared genes.
