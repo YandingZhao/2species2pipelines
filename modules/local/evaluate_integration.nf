@@ -1,5 +1,5 @@
 process EVALUATE_INTEGRATION {
-        publishDir "${params.outdir}/evaluation", mode: 'copy'
+        publishDir "${params.outdir}/evaluation", mode: params.publish_dir_mode
         tag "${integrated_h5ad.baseName}"
 
         input:
@@ -14,7 +14,8 @@ process EVALUATE_INTEGRATION {
         python ${evaluation_script} \
             --input_h5ad ${integrated_h5ad} \
             --batch_key batch \
-            --label_key celltype
+            --label_key celltype \
+            --n_jobs ${task.cpus}
         """
 
         stub:
