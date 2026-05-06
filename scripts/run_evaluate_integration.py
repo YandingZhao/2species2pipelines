@@ -68,7 +68,6 @@ def main() -> None:
     stem = input_path.stem
 
     metrics_path = Path(f"{stem}_scib_metrics.tsv")
-    scaled_metrics_path = Path(f"{stem}_scib_metrics_scaled.tsv")
     report_path = Path(f"{stem}_scib_report.txt")
 
     adata = sc.read_h5ad(input_path)
@@ -77,14 +76,12 @@ def main() -> None:
     embeddings = _candidate_embeddings(adata)
     if not embeddings:
         _write_skip(metrics_path, report_path, "No valid 2D embeddings found in adata.obsm")
-        pd.DataFrame().to_csv(scaled_metrics_path, sep="\t", index=False)
         return
 
     batch_count = adata.obs[args.batch_key].nunique()
     label_count = adata.obs[args.label_key].nunique()
     if batch_count < 2:
         _write_skip(metrics_path, report_path, "Need at least two batches for benchmarking")
-        pd.DataFrame().to_csv(scaled_metrics_path, sep="\t", index=False)
         return
 
 #    if label_count < 2:
@@ -104,10 +101,8 @@ def main() -> None:
 
     benchmarker.benchmark()
     raw_results = benchmarker.get_results(min_max_scale=False)
-    scaled_results = benchmarker.get_results(min_max_scale=True)
 
     raw_results.transpose().to_csv(metrics_path, sep="\t")
-    scaled_results.transpose().to_csv(scaled_metrics_path, sep="\t")
 
     with open(report_path, "w", encoding="utf-8") as handle:
         handle.write("status: ok\n")

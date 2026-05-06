@@ -140,7 +140,7 @@ def _format_annotation(value: float) -> str:
     return f"{value:.2f}"
 
 
-def _nature_palette(metric_types: list[str]) -> dict[str, str]:
+def _palette(metric_types: list[str]) -> dict[str, str]:
     base = {
         "Bio conservation": "#4C78A8",
         "Batch correction": "#D17C3F",
@@ -181,7 +181,7 @@ def render_report_figure(combined_report: pd.DataFrame, output_figure: str) -> N
         return
 
     metric_types = list(dict.fromkeys(numeric_report.index.get_level_values("Metric Type").astype(str)))
-    type_colors = _nature_palette(metric_types)
+    type_colors = _palette(metric_types)
     values = numeric_report.to_numpy(dtype=float)
     n_rows, n_cols = values.shape
 

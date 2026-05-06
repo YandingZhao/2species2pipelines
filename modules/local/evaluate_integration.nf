@@ -8,7 +8,6 @@ process EVALUATE_INTEGRATION {
         output:
         path "${integrated_h5ad.baseName}_scib_report.txt", emit: report
         path "${integrated_h5ad.baseName}_scib_metrics.tsv", emit: metrics
-        path "${integrated_h5ad.baseName}_scib_metrics_scaled.tsv", emit: metrics_scaled
 
         script:
         """
@@ -23,6 +22,5 @@ process EVALUATE_INTEGRATION {
         printf "status: stub_run\n" > ${integrated_h5ad.baseName}_scib_report.txt
         printf "metric\tvalue\n" > ${integrated_h5ad.baseName}_scib_metrics.tsv
         printf "status\tstub_run\n" >> ${integrated_h5ad.baseName}_scib_metrics.tsv
-        printf "\n" > ${integrated_h5ad.baseName}_scib_metrics_scaled.tsv
         """
 }
