@@ -326,6 +326,44 @@ def render_report_figure(combined_report: pd.DataFrame, output_figure: str) -> N
     plt.close(fig)
 
 
+def _compute_aggregate_score(combined_report: pd.DataFrame) -> pd.DataFrame:
+    """Append one Overall score row using the Zhong et al. 2025 weighting: 60% bio + 40% batch."""
+    numeric = combined_report.apply(pd.to_numeric, errors="coerce")
+    metric_types = numeric.index.get_level_values("Metric Type").astype(str)
+
+    bio_rows   = numeric.loc[metric_types == "Bio conservation"]
+    batch_rows = numeric.loc[metric_types == "Batch correction"]
+
+    if bio_rows.empty or batch_rows.empty:
+        return combined_report
+
+    agg_score = 0.6 * bio_rows.mean(axis=0) + 0.4 * batch_rows.mean(axis=0)
+
+    agg_index = pd.MultiIndex.from_tuples(
+        [("Overall score", "Aggregate score")],
+        names=["Metric", "Metric Type"],
+    )
+    agg_row = pd.DataFrame([agg_score.values], index=agg_index, columns=combined_report.columns)
+    return pd.concat([combined_report, agg_row])
+
+
+def _aggregate_score_long_rows(combined_report: pd.DataFrame) -> pd.DataFrame:
+    """Return the aggregate score row in long format to append to combined_long."""
+    numeric = combined_report.apply(pd.to_numeric, errors="coerce")
+    metric_types = numeric.index.get_level_values("Metric Type").astype(str)
+    agg_rows = numeric.loc[metric_types == "Aggregate score"]
+    if agg_rows.empty:
+        return pd.DataFrame()
+
+    long_rows = agg_rows.reset_index().melt(
+        id_vars=["Metric", "Metric Type"],
+        var_name=["Integration", "Embedding"],
+        value_name="value",
+    )
+    long_rows = long_rows[["Integration", "Embedding", "Metric", "Metric Type", "value"]]
+    return long_rows
+
+
 def main() -> None:
     args = parse_args()
 
@@ -340,6 +378,11 @@ def main() -> None:
 
     combined_report = pd.concat(report_tables, axis=1, sort=False)
     combined_long = pd.concat(long_tables, ignore_index=True, sort=False)
+
+    combined_report = _compute_aggregate_score(combined_report)
+    agg_long = _aggregate_score_long_rows(combined_report)
+    if not agg_long.empty:
+        combined_long = pd.concat([combined_long, agg_long], ignore_index=True, sort=False)
 
     combined_report.to_csv(args.output_report, sep="\t")
     combined_long.to_csv(args.output_long, sep="\t", index=False)
