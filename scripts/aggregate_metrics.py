@@ -4,11 +4,8 @@ import argparse
 import re
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib import colors
-from matplotlib.patches import Rectangle
 
 
 def parse_args() -> argparse.Namespace:
@@ -155,6 +152,9 @@ def _palette(metric_types: list[str]) -> dict[str, str]:
 
 
 def render_report_figure(combined_report: pd.DataFrame, output_figure: str) -> None:
+    import matplotlib.pyplot as plt
+    from matplotlib import colors
+    from matplotlib.patches import Rectangle
     numeric_report = combined_report.apply(pd.to_numeric, errors="coerce")
 
     row_metric_types = numeric_report.index.get_level_values("Metric Type").astype(str)
@@ -331,6 +331,10 @@ def _compute_aggregate_score(combined_report: pd.DataFrame) -> pd.DataFrame:
     numeric = combined_report.apply(pd.to_numeric, errors="coerce")
     metric_types = numeric.index.get_level_values("Metric Type").astype(str)
 
+    # Idempotent — skip if already computed
+    if "Aggregate score" in metric_types.values:
+        return combined_report
+
     bio_rows   = numeric.loc[metric_types == "Bio conservation"]
     batch_rows = numeric.loc[metric_types == "Batch correction"]
 
@@ -355,13 +359,18 @@ def _aggregate_score_long_rows(combined_report: pd.DataFrame) -> pd.DataFrame:
     if agg_rows.empty:
         return pd.DataFrame()
 
-    long_rows = agg_rows.reset_index().melt(
-        id_vars=["Metric", "Metric Type"],
-        var_name=["Integration", "Embedding"],
-        value_name="value",
-    )
-    long_rows = long_rows[["Integration", "Embedding", "Metric", "Metric Type", "value"]]
-    return long_rows
+    # Iterate over MultiIndex columns explicitly — melt doesn't handle them reliably
+    rows = []
+    for (metric, metric_type), row in agg_rows.iterrows():
+        for (integration, embedding), value in row.items():
+            rows.append({
+                "Integration": integration,
+                "Embedding": embedding,
+                "Metric": metric,
+                "Metric Type": metric_type,
+                "value": value,
+            })
+    return pd.DataFrame(rows, columns=["Integration", "Embedding", "Metric", "Metric Type", "value"])
 
 
 def main() -> None:

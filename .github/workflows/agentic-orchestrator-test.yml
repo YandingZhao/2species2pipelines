@@ -1,0 +1,158 @@
+name: Agentic Orchestrator Test
+
+on:
+  push:
+    branches:
+      - feat/agentic-tool
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  R_IMAGE: ghcr.io/break-through-cancer/2species2pipelines/r-methods:latest
+  PYTHON_IMAGE: ghcr.io/break-through-cancer/2species2pipelines/python-methods:latest
+
+jobs:
+
+  # ── Unit test: aggregate score formula (no Docker needed) ───────────────────
+  unit-test-aggregate-score:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install minimal deps
+        run: pip install pandas numpy pytest
+
+      - name: Run aggregate score unit tests
+        run: pytest tests/test_aggregate_metrics.py -v
+
+  # ── End-to-end orchestrator test using published Docker images ──────────────
+  e2e-orchestrator-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Pull Docker images
+        run: |
+          docker pull ${{ env.R_IMAGE }}
+          docker pull ${{ env.PYTHON_IMAGE }}
+
+      # Step 1: Ortholog conversion (R image)
+      - name: Ortholog conversion
+        run: |
+          mkdir -p ${{ github.workspace }}/tests/results/agentic_test
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w /work/tests/results/agentic_test \
+            ${{ env.R_IMAGE }} \
+            Rscript /work/scripts/run_ortholog_convert_pair.R \
+              --input_a /work/tests/data/data/Dog_pt15_Immune_Lymphoid_diet.rds \
+              --input_b /work/tests/data/data/Human_X00004_Immune_Lymphoid_diet.rds \
+              --sample_id task4_demo \
+              --species_a dog \
+              --species_b human
+
+      # Step 2: Seurat → AnnData conversion for Python methods (R image)
+      - name: Convert RDS pair to h5ad
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w /work/tests/results/agentic_test \
+            ${{ env.R_IMAGE }} \
+            Rscript /work/scripts/run_seurat_to_anndata.R \
+              --input_a /work/tests/results/agentic_test/task4_demo_a_ortholog.rds \
+              --input_b /work/tests/results/agentic_test/task4_demo_b_ortholog.rds
+
+      # Step 3: BBKNN integration (Python image)
+      - name: Run BBKNN integration
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w /work/tests/results/agentic_test \
+            ${{ env.PYTHON_IMAGE }} \
+            python3 /work/scripts/run_bbknn_module.py \
+              --input_a /work/tests/results/agentic_test/task4_demo_a_ortholog.h5ad \
+              --input_b /work/tests/results/agentic_test/task4_demo_b_ortholog.h5ad \
+              --sample_id task4_demo \
+              --species_a dog \
+              --species_b human
+
+      # Step 4: scVI integration (Python image)
+      - name: Run scVI integration
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w /work/tests/results/agentic_test \
+            ${{ env.PYTHON_IMAGE }} \
+            python3 /work/scripts/run_scvi_module.py \
+              --input_a /work/tests/results/agentic_test/task4_demo_a_ortholog.h5ad \
+              --input_b /work/tests/results/agentic_test/task4_demo_b_ortholog.h5ad \
+              --sample_id task4_demo \
+              --species_a dog \
+              --species_b human
+
+      # Step 5: Evaluate both integrations (Python image)
+      - name: Evaluate BBKNN
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w /work/tests/results/agentic_test \
+            ${{ env.PYTHON_IMAGE }} \
+            python3 /work/scripts/run_evaluate_integration.py \
+              --input_h5ad /work/tests/results/agentic_test/task4_demo_bbknn_integration.h5ad
+
+      - name: Evaluate scVI
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w /work/tests/results/agentic_test \
+            ${{ env.PYTHON_IMAGE }} \
+            python3 /work/scripts/run_evaluate_integration.py \
+              --input_h5ad /work/tests/results/agentic_test/task4_demo_scvi_integration.h5ad
+
+      # Step 6: Aggregate metrics + check weighted score (Python image)
+      - name: Aggregate metrics and verify weighted score
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w /work/tests/results/agentic_test \
+            ${{ env.PYTHON_IMAGE }} \
+            python3 /work/scripts/aggregate_metrics.py \
+              --metrics_files \
+                /work/tests/results/agentic_test/task4_demo_bbknn_integration_scib_metrics.tsv \
+                /work/tests/results/agentic_test/task4_demo_scvi_integration_scib_metrics.tsv \
+              --output_report /work/tests/results/agentic_test/combined_metrics_report.tsv \
+              --output_long   /work/tests/results/agentic_test/combined_metrics_long.tsv \
+              --output_figure /work/tests/results/agentic_test/combined_metrics_figure.png
+
+      - name: Verify aggregate score row exists
+        run: |
+          grep -q "Overall score" tests/results/agentic_test/combined_metrics_report.tsv && \
+            echo "Aggregate score row found" || \
+            (echo "ERROR: Aggregate score row missing from combined_metrics_report.tsv" && exit 1)
+
+      - name: Upload test outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentic-test-outputs
+          path: tests/results/agentic_test/
+          retention-days: 7
