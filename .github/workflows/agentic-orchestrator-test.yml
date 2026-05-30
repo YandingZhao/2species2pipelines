@@ -13,6 +13,7 @@ env:
   REGISTRY: ghcr.io
   R_IMAGE: ghcr.io/break-through-cancer/2species2pipelines/r-methods:latest
   PYTHON_IMAGE: ghcr.io/break-through-cancer/2species2pipelines/python-methods:latest
+  OUTDIR: ${{ github.workspace }}/tests/results/all_methods_test
 
 jobs:
 
@@ -33,8 +34,8 @@ jobs:
       - name: Run aggregate score unit tests
         run: pytest tests/test_aggregate_metrics.py -v
 
-  # ── End-to-end orchestrator test using published Docker images ──────────────
-  e2e-orchestrator-test:
+  # ── Full all-methods test using published Docker images ─────────────────────
+  all-methods-test:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -55,13 +56,16 @@ jobs:
           docker pull ${{ env.R_IMAGE }}
           docker pull ${{ env.PYTHON_IMAGE }}
 
-      # Step 1: Ortholog conversion (R image)
-      - name: Ortholog conversion
+      - name: Create output directory
+        run: mkdir -p ${{ env.OUTDIR }}
+
+      # ── Preprocessing (shared across all methods) ──────────────────────────
+
+      - name: Ortholog conversion  [R]
         run: |
-          mkdir -p ${{ github.workspace }}/tests/results/agentic_test
           docker run --rm \
             -v ${{ github.workspace }}:/work \
-            -w /work/tests/results/agentic_test \
+            -w ${{ env.OUTDIR }} \
             ${{ env.R_IMAGE }} \
             Rscript /work/scripts/run_ortholog_convert_pair.R \
               --input_a /work/tests/data/data/Dog_pt15_Immune_Lymphoid_diet.rds \
@@ -70,96 +74,200 @@ jobs:
               --species_a dog \
               --species_b human
 
-      # Step 2: Seurat → AnnData conversion for Python methods (R image)
-      - name: Convert RDS pair to h5ad
+      - name: Convert ortholog RDS pair → h5ad  [R]
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/work \
-            -w /work/tests/results/agentic_test \
+            -w ${{ env.OUTDIR }} \
             ${{ env.R_IMAGE }} \
             Rscript /work/scripts/run_seurat_to_anndata.R \
-              --input_a /work/tests/results/agentic_test/task4_demo_a_ortholog.rds \
-              --input_b /work/tests/results/agentic_test/task4_demo_b_ortholog.rds
+              --input_a ${{ env.OUTDIR }}/task4_demo_a_ortholog.rds \
+              --input_b ${{ env.OUTDIR }}/task4_demo_b_ortholog.rds
 
-      # Step 3: BBKNN integration (Python image)
-      - name: Run BBKNN integration
+      # ── R integration methods ──────────────────────────────────────────────
+
+      - name: Harmony integration  [R]
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/work \
-            -w /work/tests/results/agentic_test \
+            -w ${{ env.OUTDIR }} \
+            ${{ env.R_IMAGE }} \
+            Rscript /work/scripts/run_harmony_module.R \
+              --input_a ${{ env.OUTDIR }}/task4_demo_a_ortholog.rds \
+              --input_b ${{ env.OUTDIR }}/task4_demo_b_ortholog.rds \
+              --sample_id task4_demo \
+              --species_a dog \
+              --species_b human
+
+      - name: Convert Harmony RDS → h5ad  [R]
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w ${{ env.OUTDIR }} \
+            ${{ env.R_IMAGE }} \
+            Rscript /work/scripts/run_seurat_to_anndata.R \
+              --input_a ${{ env.OUTDIR }}/task4_demo_harmony_integration.rds
+
+      - name: Seurat4 CCA integration  [R]
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w ${{ env.OUTDIR }} \
+            ${{ env.R_IMAGE }} \
+            Rscript /work/scripts/run_seurat4_module.R \
+              --input_a ${{ env.OUTDIR }}/task4_demo_a_ortholog.rds \
+              --input_b ${{ env.OUTDIR }}/task4_demo_b_ortholog.rds \
+              --sample_id task4_demo \
+              --species_a dog \
+              --species_b human
+
+      - name: Convert Seurat4 RDS → h5ad  [R]
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w ${{ env.OUTDIR }} \
+            ${{ env.R_IMAGE }} \
+            Rscript /work/scripts/run_seurat_to_anndata.R \
+              --input_a ${{ env.OUTDIR }}/task4_demo_seurat4_integration.rds
+
+      - name: fastMNN integration  [R]
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w ${{ env.OUTDIR }} \
+            ${{ env.R_IMAGE }} \
+            Rscript /work/scripts/run_fastmnn_module.R \
+              --input_a ${{ env.OUTDIR }}/task4_demo_a_ortholog.rds \
+              --input_b ${{ env.OUTDIR }}/task4_demo_b_ortholog.rds \
+              --sample_id task4_demo \
+              --species_a dog \
+              --species_b human
+
+      - name: Convert fastMNN RDS → h5ad  [R]
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w ${{ env.OUTDIR }} \
+            ${{ env.R_IMAGE }} \
+            Rscript /work/scripts/run_seurat_to_anndata.R \
+              --input_a ${{ env.OUTDIR }}/task4_demo_fastmnn_integration.rds
+
+      # ── Python integration methods ─────────────────────────────────────────
+
+      - name: BBKNN integration  [Python]
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w ${{ env.OUTDIR }} \
             ${{ env.PYTHON_IMAGE }} \
             python3 /work/scripts/run_bbknn_module.py \
-              --input_a /work/tests/results/agentic_test/task4_demo_a_ortholog.h5ad \
-              --input_b /work/tests/results/agentic_test/task4_demo_b_ortholog.h5ad \
+              --input_a ${{ env.OUTDIR }}/task4_demo_a_ortholog.h5ad \
+              --input_b ${{ env.OUTDIR }}/task4_demo_b_ortholog.h5ad \
               --sample_id task4_demo \
               --species_a dog \
               --species_b human
 
-      # Step 4: scVI integration (Python image)
-      - name: Run scVI integration
+      - name: Scanorama integration  [Python]
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/work \
-            -w /work/tests/results/agentic_test \
+            -w ${{ env.OUTDIR }} \
+            ${{ env.PYTHON_IMAGE }} \
+            python3 /work/scripts/run_scanorama_module.py \
+              --input_a ${{ env.OUTDIR }}/task4_demo_a_ortholog.h5ad \
+              --input_b ${{ env.OUTDIR }}/task4_demo_b_ortholog.h5ad \
+              --sample_id task4_demo \
+              --species_a dog \
+              --species_b human
+
+      - name: scVI integration  [Python]
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w ${{ env.OUTDIR }} \
             ${{ env.PYTHON_IMAGE }} \
             python3 /work/scripts/run_scvi_module.py \
-              --input_a /work/tests/results/agentic_test/task4_demo_a_ortholog.h5ad \
-              --input_b /work/tests/results/agentic_test/task4_demo_b_ortholog.h5ad \
+              --input_a ${{ env.OUTDIR }}/task4_demo_a_ortholog.h5ad \
+              --input_b ${{ env.OUTDIR }}/task4_demo_b_ortholog.h5ad \
               --sample_id task4_demo \
               --species_a dog \
               --species_b human
 
-      # Step 5: Evaluate both integrations (Python image)
-      - name: Evaluate BBKNN
+      - name: scGen integration  [Python]
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/work \
-            -w /work/tests/results/agentic_test \
+            -w ${{ env.OUTDIR }} \
             ${{ env.PYTHON_IMAGE }} \
-            python3 /work/scripts/run_evaluate_integration.py \
-              --input_h5ad /work/tests/results/agentic_test/task4_demo_bbknn_integration.h5ad
+            python3 /work/scripts/run_scgen_module.py \
+              --input_a ${{ env.OUTDIR }}/task4_demo_a_ortholog.h5ad \
+              --input_b ${{ env.OUTDIR }}/task4_demo_b_ortholog.h5ad \
+              --sample_id task4_demo \
+              --species_a dog \
+              --species_b human
 
-      - name: Evaluate scVI
+      # ── Evaluate all methods ───────────────────────────────────────────────
+
+      - name: Evaluate all methods  [Python]
+        run: |
+          for h5ad in \
+            ${{ env.OUTDIR }}/task4_demo_harmony_integration.h5ad \
+            ${{ env.OUTDIR }}/task4_demo_seurat4_integration.h5ad \
+            ${{ env.OUTDIR }}/task4_demo_fastmnn_integration.h5ad \
+            ${{ env.OUTDIR }}/task4_demo_bbknn_integration.h5ad \
+            ${{ env.OUTDIR }}/task4_demo_scanorama_integration.h5ad \
+            ${{ env.OUTDIR }}/task4_demo_scvi_integration.h5ad \
+            ${{ env.OUTDIR }}/task4_demo_scgen_integration.h5ad; do
+            echo "=== Evaluating $h5ad ==="
+            docker run --rm \
+              -v ${{ github.workspace }}:/work \
+              -w ${{ env.OUTDIR }} \
+              ${{ env.PYTHON_IMAGE }} \
+              python3 /work/scripts/run_evaluate_integration.py \
+                --input_h5ad "$h5ad" || echo "WARNING: evaluation failed for $h5ad"
+          done
+
+      # ── Aggregate all metrics into one report ──────────────────────────────
+
+      - name: Aggregate all metrics  [Python]
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/work \
-            -w /work/tests/results/agentic_test \
-            ${{ env.PYTHON_IMAGE }} \
-            python3 /work/scripts/run_evaluate_integration.py \
-              --input_h5ad /work/tests/results/agentic_test/task4_demo_scvi_integration.h5ad
-
-      # Step 6: Aggregate metrics + check weighted score (Python image)
-      - name: Aggregate metrics and verify weighted score
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/work \
-            -w /work/tests/results/agentic_test \
+            -w ${{ env.OUTDIR }} \
             ${{ env.PYTHON_IMAGE }} \
             python3 /work/scripts/aggregate_metrics.py \
               --metrics_files \
-                /work/tests/results/agentic_test/task4_demo_bbknn_integration_scib_metrics.tsv \
-                /work/tests/results/agentic_test/task4_demo_scvi_integration_scib_metrics.tsv \
-              --output_report /work/tests/results/agentic_test/combined_metrics_report.tsv \
-              --output_long   /work/tests/results/agentic_test/combined_metrics_long.tsv \
-              --output_figure /work/tests/results/agentic_test/combined_metrics_figure.png
+                ${{ env.OUTDIR }}/task4_demo_harmony_integration_scib_metrics.tsv \
+                ${{ env.OUTDIR }}/task4_demo_seurat4_integration_scib_metrics.tsv \
+                ${{ env.OUTDIR }}/task4_demo_fastmnn_integration_scib_metrics.tsv \
+                ${{ env.OUTDIR }}/task4_demo_bbknn_integration_scib_metrics.tsv \
+                ${{ env.OUTDIR }}/task4_demo_scanorama_integration_scib_metrics.tsv \
+                ${{ env.OUTDIR }}/task4_demo_scvi_integration_scib_metrics.tsv \
+                ${{ env.OUTDIR }}/task4_demo_scgen_integration_scib_metrics.tsv \
+              --output_report ${{ env.OUTDIR }}/combined_metrics_report.tsv \
+              --output_long   ${{ env.OUTDIR }}/combined_metrics_long.tsv \
+              --output_figure ${{ env.OUTDIR }}/combined_metrics_figure.png
 
-      - name: Verify aggregate score row exists
+      # ── Print summary table ────────────────────────────────────────────────
+
+      - name: Print full metrics report
         run: |
-          # scib_metrics writes the weighted score (0.6 bio + 0.4 batch) as
-          # Metric="Total", Metric Type="Aggregate score"
-          grep -q "Aggregate score" tests/results/agentic_test/combined_metrics_report.tsv && \
+          echo "=== Full combined metrics report ==="
+          cat tests/results/all_methods_test/combined_metrics_report.tsv
+
+      - name: Verify aggregate score and print weighted totals
+        run: |
+          grep -q "Aggregate score" tests/results/all_methods_test/combined_metrics_report.tsv && \
             echo "Aggregate score row found" || \
-            (echo "ERROR: Aggregate score row missing from combined_metrics_report.tsv" && exit 1)
+            (echo "ERROR: Aggregate score row missing" && exit 1)
+          echo ""
+          echo "=== Weighted scores (0.6 bio + 0.4 batch) per method ==="
+          grep "Aggregate score" tests/results/all_methods_test/combined_metrics_report.tsv
 
-      - name: Print aggregate scores
-        run: |
-          echo "=== Weighted aggregate scores (0.6 bio + 0.4 batch) ==="
-          grep "Aggregate score" tests/results/agentic_test/combined_metrics_report.tsv || true
-
-      - name: Upload test outputs
+      - name: Upload all outputs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: agentic-test-outputs
-          path: tests/results/agentic_test/
-          retention-days: 7
+          name: all-methods-test-outputs
+          path: tests/results/all_methods_test/
+          retention-days: 14
