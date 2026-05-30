@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.10-slim
 
 LABEL maintainer="2species2pipelines"
 LABEL description="Python runtime for SAMap cross-species integration (includes BLAST)"

@@ -15,7 +15,10 @@ env:
   PYTHON_IMAGE: ghcr.io/break-through-cancer/2species2pipelines/python-methods:latest
   SAMAP_IMAGE: ghcr.io/break-through-cancer/2species2pipelines/samap-methods:latest
   SATURN_IMAGE: ghcr.io/break-through-cancer/2species2pipelines/saturn-methods:latest
+  # Host-side output path (for mkdir, ls, cat, artifact upload)
   OUTDIR: ${{ github.workspace }}/tests/results/all_methods_test
+  # Container-internal path (volume mount: ${{ github.workspace }} → /work)
+  CONT_OUTDIR: /work/tests/results/all_methods_test
 
 jobs:
 
@@ -145,7 +148,7 @@ jobs:
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/work \
-            -w ${{ env.OUTDIR }} \
+            -w ${{ env.CONT_OUTDIR }} \
             ${{ env.R_IMAGE }} \
             Rscript /work/scripts/run_ortholog_convert_pair.R \
               --input_a /work/tests/data/data/Dog_pt15_Immune_Lymphoid_diet.rds \
@@ -158,79 +161,79 @@ jobs:
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/work \
-            -w ${{ env.OUTDIR }} \
+            -w ${{ env.CONT_OUTDIR }} \
             ${{ env.R_IMAGE }} \
             Rscript /work/scripts/run_seurat_to_anndata.R \
-              --input_a ${{ env.OUTDIR }}/task4_demo_a_ortholog.rds \
-              --input_b ${{ env.OUTDIR }}/task4_demo_b_ortholog.rds
+              --input_a ${{ env.CONT_OUTDIR }}/task4_demo_a_ortholog.rds \
+              --input_b ${{ env.CONT_OUTDIR }}/task4_demo_b_ortholog.rds
 
       # ── R methods ─────────────────────────────────────────────────────────
 
       - name: Harmony  [R]
         run: |
-          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.OUTDIR }} ${{ env.R_IMAGE }} \
+          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.CONT_OUTDIR }} ${{ env.R_IMAGE }} \
             Rscript /work/scripts/run_harmony_module.R \
-              --input_a ${{ env.OUTDIR }}/task4_demo_a_ortholog.rds \
-              --input_b ${{ env.OUTDIR }}/task4_demo_b_ortholog.rds \
+              --input_a ${{ env.CONT_OUTDIR }}/task4_demo_a_ortholog.rds \
+              --input_b ${{ env.CONT_OUTDIR }}/task4_demo_b_ortholog.rds \
               --sample_id task4_demo --species_a dog --species_b human
-          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.OUTDIR }} ${{ env.R_IMAGE }} \
+          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.CONT_OUTDIR }} ${{ env.R_IMAGE }} \
             Rscript /work/scripts/run_seurat_to_anndata.R \
-              --input_a ${{ env.OUTDIR }}/task4_demo_harmony_integration.rds
+              --input_a ${{ env.CONT_OUTDIR }}/task4_demo_harmony_integration.rds
 
       - name: Seurat4 CCA  [R]
         run: |
-          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.OUTDIR }} ${{ env.R_IMAGE }} \
+          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.CONT_OUTDIR }} ${{ env.R_IMAGE }} \
             Rscript /work/scripts/run_seurat4_module.R \
-              --input_a ${{ env.OUTDIR }}/task4_demo_a_ortholog.rds \
-              --input_b ${{ env.OUTDIR }}/task4_demo_b_ortholog.rds \
+              --input_a ${{ env.CONT_OUTDIR }}/task4_demo_a_ortholog.rds \
+              --input_b ${{ env.CONT_OUTDIR }}/task4_demo_b_ortholog.rds \
               --sample_id task4_demo --species_a dog --species_b human
-          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.OUTDIR }} ${{ env.R_IMAGE }} \
+          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.CONT_OUTDIR }} ${{ env.R_IMAGE }} \
             Rscript /work/scripts/run_seurat_to_anndata.R \
-              --input_a ${{ env.OUTDIR }}/task4_demo_seurat4_integration.rds
+              --input_a ${{ env.CONT_OUTDIR }}/task4_demo_seurat4_integration.rds
 
       - name: fastMNN  [R]
         run: |
-          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.OUTDIR }} ${{ env.R_IMAGE }} \
+          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.CONT_OUTDIR }} ${{ env.R_IMAGE }} \
             Rscript /work/scripts/run_fastmnn_module.R \
-              --input_a ${{ env.OUTDIR }}/task4_demo_a_ortholog.rds \
-              --input_b ${{ env.OUTDIR }}/task4_demo_b_ortholog.rds \
+              --input_a ${{ env.CONT_OUTDIR }}/task4_demo_a_ortholog.rds \
+              --input_b ${{ env.CONT_OUTDIR }}/task4_demo_b_ortholog.rds \
               --sample_id task4_demo --species_a dog --species_b human
-          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.OUTDIR }} ${{ env.R_IMAGE }} \
+          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.CONT_OUTDIR }} ${{ env.R_IMAGE }} \
             Rscript /work/scripts/run_seurat_to_anndata.R \
-              --input_a ${{ env.OUTDIR }}/task4_demo_fastmnn_integration.rds
+              --input_a ${{ env.CONT_OUTDIR }}/task4_demo_fastmnn_integration.rds
 
       # ── Python methods ─────────────────────────────────────────────────────
 
       - name: BBKNN  [Python]
         run: |
-          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.OUTDIR }} ${{ env.PYTHON_IMAGE }} \
+          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.CONT_OUTDIR }} ${{ env.PYTHON_IMAGE }} \
             python3 /work/scripts/run_bbknn_module.py \
-              --input_a ${{ env.OUTDIR }}/task4_demo_a_ortholog.h5ad \
-              --input_b ${{ env.OUTDIR }}/task4_demo_b_ortholog.h5ad \
+              --input_a ${{ env.CONT_OUTDIR }}/task4_demo_a_ortholog.h5ad \
+              --input_b ${{ env.CONT_OUTDIR }}/task4_demo_b_ortholog.h5ad \
               --sample_id task4_demo --species_a dog --species_b human
 
       - name: Scanorama  [Python]
         run: |
-          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.OUTDIR }} ${{ env.PYTHON_IMAGE }} \
+          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.CONT_OUTDIR }} ${{ env.PYTHON_IMAGE }} \
             python3 /work/scripts/run_scanorama_module.py \
-              --input_a ${{ env.OUTDIR }}/task4_demo_a_ortholog.h5ad \
-              --input_b ${{ env.OUTDIR }}/task4_demo_b_ortholog.h5ad \
+              --input_a ${{ env.CONT_OUTDIR }}/task4_demo_a_ortholog.h5ad \
+              --input_b ${{ env.CONT_OUTDIR }}/task4_demo_b_ortholog.h5ad \
               --sample_id task4_demo --species_a dog --species_b human
 
       - name: scVI  [Python]
         run: |
-          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.OUTDIR }} ${{ env.PYTHON_IMAGE }} \
+          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.CONT_OUTDIR }} ${{ env.PYTHON_IMAGE }} \
             python3 /work/scripts/run_scvi_module.py \
-              --input_a ${{ env.OUTDIR }}/task4_demo_a_ortholog.h5ad \
-              --input_b ${{ env.OUTDIR }}/task4_demo_b_ortholog.h5ad \
+              --input_a ${{ env.CONT_OUTDIR }}/task4_demo_a_ortholog.h5ad \
+              --input_b ${{ env.CONT_OUTDIR }}/task4_demo_b_ortholog.h5ad \
               --sample_id task4_demo --species_a dog --species_b human
 
       - name: scGen  [Python]
         run: |
-          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.OUTDIR }} ${{ env.PYTHON_IMAGE }} \
+          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.CONT_OUTDIR }} ${{ env.PYTHON_IMAGE }} \
             python3 /work/scripts/run_scgen_module.py \
-              --input_a ${{ env.OUTDIR }}/task4_demo_a_ortholog.h5ad \
-              --input_b ${{ env.OUTDIR }}/task4_demo_b_ortholog.h5ad \
+              --input_a ${{ env.CONT_OUTDIR }}/task4_demo_a_ortholog.h5ad \
+              --input_b ${{ env.CONT_OUTDIR }}/task4_demo_b_ortholog.h5ad \
               --sample_id task4_demo --species_a dog --species_b human
 
       # ── SAMap (sequence-based) ─────────────────────────────────────────────
@@ -240,10 +243,10 @@ jobs:
         run: |
           docker image inspect ${{ env.SAMAP_IMAGE }} > /dev/null 2>&1 || \
             { echo "SAMap image not available — skipping"; exit 0; }
-          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.OUTDIR }} ${{ env.SAMAP_IMAGE }} \
+          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.CONT_OUTDIR }} ${{ env.SAMAP_IMAGE }} \
             python3 /work/scripts/run_samap_module.py \
-              --input_a ${{ env.OUTDIR }}/task4_demo_a_ortholog.h5ad \
-              --input_b ${{ env.OUTDIR }}/task4_demo_b_ortholog.h5ad \
+              --input_a ${{ env.CONT_OUTDIR }}/task4_demo_a_ortholog.h5ad \
+              --input_b ${{ env.CONT_OUTDIR }}/task4_demo_b_ortholog.h5ad \
               --sample_id task4_demo --species_a dog --species_b human
 
       # ── SATURN (protein language model) ───────────────────────────────────
@@ -253,24 +256,26 @@ jobs:
         run: |
           docker image inspect ${{ env.SATURN_IMAGE }} > /dev/null 2>&1 || \
             { echo "SATURN image not available — skipping"; exit 0; }
-          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.OUTDIR }} ${{ env.SATURN_IMAGE }} \
+          docker run --rm -v ${{ github.workspace }}:/work -w ${{ env.CONT_OUTDIR }} ${{ env.SATURN_IMAGE }} \
             python3 /work/scripts/run_saturn_module.py \
-              --input_a ${{ env.OUTDIR }}/task4_demo_a_ortholog.h5ad \
-              --input_b ${{ env.OUTDIR }}/task4_demo_b_ortholog.h5ad \
+              --input_a ${{ env.CONT_OUTDIR }}/task4_demo_a_ortholog.h5ad \
+              --input_b ${{ env.CONT_OUTDIR }}/task4_demo_b_ortholog.h5ad \
               --sample_id task4_demo --species_a dog --species_b human
 
       # ── Evaluate all available h5ad outputs ───────────────────────────────
 
       - name: Evaluate all integration outputs  [Python]
         run: |
-          for h5ad in ${{ env.OUTDIR }}/task4_demo_*_integration.h5ad; do
+          OUTDIR="${{ env.OUTDIR }}"
+          CONT_OUTDIR="${{ env.CONT_OUTDIR }}"
+          for h5ad in ${OUTDIR}/task4_demo_*_integration.h5ad; do
             echo "=== Evaluating $(basename $h5ad) ==="
             docker run --rm \
               -v ${{ github.workspace }}:/work \
-              -w ${{ env.OUTDIR }} \
+              -w ${CONT_OUTDIR} \
               ${{ env.PYTHON_IMAGE }} \
               python3 /work/scripts/run_evaluate_integration.py \
-                --input_h5ad "$h5ad" \
+                --input_h5ad "${CONT_OUTDIR}/$(basename $h5ad)" \
               || echo "WARNING: evaluation failed for $(basename $h5ad)"
           done
 
@@ -278,19 +283,22 @@ jobs:
 
       - name: Aggregate all metrics  [Python]
         run: |
-          METRICS_FILES=$(ls ${{ env.OUTDIR }}/*_scib_metrics.tsv 2>/dev/null | tr '\n' ' ')
-          if [ -z "$METRICS_FILES" ]; then
+          OUTDIR="${{ env.OUTDIR }}"
+          CONT_OUTDIR="${{ env.CONT_OUTDIR }}"
+          METRICS_FILES_CONT=$(ls ${OUTDIR}/*_scib_metrics.tsv 2>/dev/null | \
+            sed "s|${OUTDIR}|${CONT_OUTDIR}|g" | tr '\n' ' ')
+          if [ -z "$METRICS_FILES_CONT" ]; then
             echo "ERROR: no metrics files found"; exit 1
           fi
           docker run --rm \
             -v ${{ github.workspace }}:/work \
-            -w ${{ env.OUTDIR }} \
+            -w ${CONT_OUTDIR} \
             ${{ env.PYTHON_IMAGE }} \
             python3 /work/scripts/aggregate_metrics.py \
-              --metrics_files $METRICS_FILES \
-              --output_report ${{ env.OUTDIR }}/combined_metrics_report.tsv \
-              --output_long   ${{ env.OUTDIR }}/combined_metrics_long.tsv \
-              --output_figure ${{ env.OUTDIR }}/combined_metrics_figure.png
+              --metrics_files ${METRICS_FILES_CONT} \
+              --output_report ${CONT_OUTDIR}/combined_metrics_report.tsv \
+              --output_long   ${CONT_OUTDIR}/combined_metrics_long.tsv \
+              --output_figure ${CONT_OUTDIR}/combined_metrics_figure.png
 
       - name: Print full metrics table
         run: |
