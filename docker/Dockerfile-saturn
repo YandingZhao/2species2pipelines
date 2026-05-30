@@ -1,0 +1,39 @@
+FROM python:3.11-slim
+
+LABEL maintainer="2species2pipelines"
+LABEL description="Python runtime for SATURN cross-species integration (ESM2 protein embeddings + PyTorch)"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    g++ \
+    make \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Core single-cell packages (aligned with Dockerfile-python)
+RUN pip install --no-cache-dir --default-timeout=300 --retries=10 \
+    anndata==0.10.9 \
+    numpy==1.26.4 \
+    pandas==2.2.3 \
+    scanpy==1.10.3 \
+    scib-metrics==0.5.9 \
+    scipy==1.17.1 \
+    scikit-learn==1.5.2 \
+    leidenalg==0.10.2
+
+# PyTorch CPU (no CUDA — GPU users should override with the appropriate CUDA wheel)
+RUN pip install --no-cache-dir --default-timeout=600 --retries=10 \
+    torch==2.3.1 --index-url https://download.pytorch.org/whl/cpu
+
+# ESM2 protein language model (Meta / fair-esm)
+RUN pip install --no-cache-dir --default-timeout=300 --retries=10 \
+    fair-esm
+
+# SATURN: install from PyPI; falls back to GitHub if not yet published
+RUN pip install --no-cache-dir --default-timeout=300 --retries=10 saturn-sc || \
+    pip install --no-cache-dir --default-timeout=300 --retries=10 \
+    git+https://github.com/snap-stanford/SATURN.git
+
+RUN python -c "import esm; print('fair-esm OK')" && \
+    python -c "import torch; print('torch', torch.__version__, 'OK')"
+
+CMD ["/bin/bash"]
