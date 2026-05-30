@@ -10,13 +10,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ncbi-blast+ \
     && rm -rf /var/lib/apt/lists/*
 
-# Core single-cell packages (aligned with Dockerfile-python)
+# Core single-cell packages needed by run_samap_module.py
+# scib-metrics is intentionally excluded: it requires Python >=3.11,
+# but sam-algorithm requires <3.11; evaluation runs in the python-methods image.
 RUN pip install --no-cache-dir --default-timeout=300 --retries=10 \
     anndata==0.10.9 \
     numpy==1.26.4 \
     pandas==2.2.3 \
     scanpy==1.10.3 \
-    scib-metrics==0.5.9 \
     scipy==1.17.1 \
     scikit-learn==1.5.2 \
     leidenalg==0.10.2

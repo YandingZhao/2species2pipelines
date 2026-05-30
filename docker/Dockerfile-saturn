@@ -35,7 +35,7 @@ RUN pip install --no-cache-dir --default-timeout=300 --retries=10 \
 # SATURN: clone the repo (no pip package / pyproject.toml available)
 RUN git clone --depth 1 https://github.com/snap-stanford/SATURN.git /opt/saturn
 
-ENV PYTHONPATH="/opt/saturn:${PYTHONPATH}"
+ENV PYTHONPATH="/opt/saturn"
 
 RUN python -c "import esm; print('fair-esm OK')" && \
     python -c "import torch; print('torch', torch.__version__, 'OK')"
