@@ -59,7 +59,7 @@ class TestComputeAggregateScore:
         metrics      = result.index.get_level_values("Metric").astype(str)
         metric_types = result.index.get_level_values("Metric Type").astype(str)
 
-        assert "Overall score"   in metrics.values
+        assert "Total"   in metrics.values
         assert "Aggregate score" in metric_types.values
 
     def test_no_duplicate_aggregate_rows(self):

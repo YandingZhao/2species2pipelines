@@ -343,8 +343,9 @@ def _compute_aggregate_score(combined_report: pd.DataFrame) -> pd.DataFrame:
 
     agg_score = 0.6 * bio_rows.mean(axis=0) + 0.4 * batch_rows.mean(axis=0)
 
+    # Use "Total" to match scib_metrics naming convention
     agg_index = pd.MultiIndex.from_tuples(
-        [("Overall score", "Aggregate score")],
+        [("Total", "Aggregate score")],
         names=["Metric", "Metric Type"],
     )
     agg_row = pd.DataFrame([agg_score.values], index=agg_index, columns=combined_report.columns)

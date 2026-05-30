@@ -145,9 +145,16 @@ jobs:
 
       - name: Verify aggregate score row exists
         run: |
-          grep -q "Overall score" tests/results/agentic_test/combined_metrics_report.tsv && \
+          # scib_metrics writes the weighted score (0.6 bio + 0.4 batch) as
+          # Metric="Total", Metric Type="Aggregate score"
+          grep -q "Aggregate score" tests/results/agentic_test/combined_metrics_report.tsv && \
             echo "Aggregate score row found" || \
             (echo "ERROR: Aggregate score row missing from combined_metrics_report.tsv" && exit 1)
+
+      - name: Print aggregate scores
+        run: |
+          echo "=== Weighted aggregate scores (0.6 bio + 0.4 batch) ==="
+          grep "Aggregate score" tests/results/agentic_test/combined_metrics_report.tsv || true
 
       - name: Upload test outputs
         if: always()
