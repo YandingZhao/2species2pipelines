@@ -112,6 +112,19 @@ def main():
                 fh.write(blast_row(gene))
 
     sams = {id_a: path_a, id_b: path_b}
+
+    # Diagnostics: confirm files exist and print samap source so we can debug path logic
+    import inspect
+    from samap import mapping as _samap_mod
+    print("=== BLAST files created ===")
+    for fname in os.listdir(maps_dir):
+        fpath = os.path.join(maps_dir, fname)
+        print(f"  {fpath}  size={os.path.getsize(fpath)}")
+    print(f"maps_dir='{maps_dir}'  id_a='{id_a}'  id_b='{id_b}'")
+    print("=== _calculate_blast_graph source ===")
+    print(inspect.getsource(_samap_mod._calculate_blast_graph))
+    print("=== end source ===")
+
     sm = SAMAP(sams, f_maps=maps_dir)
     sm.run(NUMITERS=args.num_epochs)
 
