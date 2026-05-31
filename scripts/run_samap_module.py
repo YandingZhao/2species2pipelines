@@ -126,24 +126,37 @@ def main():
 
     elapsed = time.time() - start
 
-    # Extract the joint embedding — SAMap stores it in the combined adata
-    adata_combined = sm.adata
-    if "X_umap" not in adata_combined.obsm:
-        sc.pp.neighbors(adata_combined, use_rep="X_samap" if "X_samap" in adata_combined.obsm else "X_pca")
-        sc.tl.umap(adata_combined)
+    # SAMap stores per-species results in sm.sams[id].adata (no sm.adata attribute).
+    # Each species' adata has the joint-space embedding in obsm after run().
+    adata_a_out = sm.sams[id_a].adata
+    adata_b_out = sm.sams[id_b].adata
 
-    embedding_key = "X_samap" if "X_samap" in adata_combined.obsm else "X_umap"
-    embedding = np.asarray(adata_combined.obsm[embedding_key])
+    # Find the embedding key (SAMap may use X_umap or X_samap)
+    embedding_key = next(
+        (k for k in ["X_samap", "X_umap"] if k in adata_a_out.obsm),
+        list(adata_a_out.obsm.keys())[0] if adata_a_out.obsm else None,
+    )
 
-    # Restore batch + celltype from source datasets
-    batch_map = {**dict(zip(adata_a.obs_names, adata_a.obs["batch"])),
-                 **dict(zip(adata_b.obs_names, adata_b.obs["batch"]))}
-    ct_map   = {**dict(zip(adata_a.obs_names, adata_a.obs["celltype"])),
-                **dict(zip(adata_b.obs_names, adata_b.obs["celltype"]))}
-    adata_combined.obs["batch"]    = [batch_map.get(c, "unknown") for c in adata_combined.obs_names]
-    adata_combined.obs["celltype"] = [ct_map.get(c, "unknown")   for c in adata_combined.obs_names]
+    # Restore metadata before concat
+    for adata_out, species in [(adata_a_out, args.species_a), (adata_b_out, args.species_b)]:
+        adata_out.obs["batch"] = f"{args.sample_id}_{species}"
+        if "celltype" not in adata_out.obs.columns:
+            adata_out.obs["celltype"] = "unknown"
 
-    # Store embedding under consistent key for downstream evaluation
+    adata_combined = ad.concat([adata_a_out, adata_b_out], join="outer", merge="same")
+    adata_combined.obs_names_make_unique()
+
+    if embedding_key and embedding_key in adata_a_out.obsm and embedding_key in adata_b_out.obsm:
+        embedding = np.vstack([
+            np.asarray(adata_a_out.obsm[embedding_key]),
+            np.asarray(adata_b_out.obsm[embedding_key]),
+        ])
+    else:
+        # Fallback: PCA on the concatenated data
+        sc.pp.pca(adata_combined, n_comps=50)
+        embedding = np.asarray(adata_combined.obsm["X_pca"])
+        embedding_key = "X_pca"
+
     adata_combined.obsm["X_samap"] = embedding
 
     pca = pd.DataFrame(
