@@ -88,6 +88,10 @@ def main():
     start = time.time()
 
     # SAMap requires file paths or SAM objects — AnnData is not accepted directly.
+    # It also needs pre-computed BLAST mapping tables in a maps directory.
+    # Since our data went through ortholog conversion, shared gene names are orthologs.
+    # We create synthetic BLAST outfmt-6 tables from the intersection of gene names,
+    # bypassing the need to run actual BLAST against protein sequence databases.
     import os, tempfile
     tmp_dir = tempfile.mkdtemp()
     path_a = os.path.join(tmp_dir, f"{id_a}.h5ad")
@@ -95,12 +99,21 @@ def main():
     adata_a.write_h5ad(path_a)
     adata_b.write_h5ad(path_b)
 
+    maps_dir = os.path.join(tmp_dir, "maps") + "/"
+    os.makedirs(maps_dir, exist_ok=True)
+
+    shared_genes = sorted(set(adata_a.var_names) & set(adata_b.var_names))
+    print(f"Creating synthetic BLAST tables for {len(shared_genes)} shared genes...")
+    # BLAST outfmt 6: qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore
+    blast_row = lambda g: f"{g}\t{g}\t100.0\t100\t0\t0\t1\t100\t1\t100\t1e-99\t100\n"
+    for fname in [f"{id_a}_{id_b}.txt", f"{id_b}_{id_a}.txt"]:
+        with open(os.path.join(maps_dir, fname), "w") as fh:
+            for gene in shared_genes:
+                fh.write(blast_row(gene))
+
     sams = {id_a: path_a, id_b: path_b}
-    sm = SAMAP(sams)
-    sm.run(
-        pairwise_genes=None,   # triggers internal BLAST to find homologs
-        num_epochs=args.num_epochs,
-    )
+    sm = SAMAP(sams, f_maps=maps_dir)
+    sm.run(NUMITERS=args.num_epochs)
 
     elapsed = time.time() - start
 
