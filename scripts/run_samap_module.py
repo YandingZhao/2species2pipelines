@@ -87,8 +87,15 @@ def main():
 
     start = time.time()
 
-    # SAMap takes a dict of {species_id: AnnData}
-    sams = {id_a: adata_a, id_b: adata_b}
+    # SAMap requires file paths or SAM objects — AnnData is not accepted directly.
+    import os, tempfile
+    tmp_dir = tempfile.mkdtemp()
+    path_a = os.path.join(tmp_dir, f"{id_a}.h5ad")
+    path_b = os.path.join(tmp_dir, f"{id_b}.h5ad")
+    adata_a.write_h5ad(path_a)
+    adata_b.write_h5ad(path_b)
+
+    sams = {id_a: path_a, id_b: path_b}
     sm = SAMAP(sams)
     sm.run(
         pairwise_genes=None,   # triggers internal BLAST to find homologs
