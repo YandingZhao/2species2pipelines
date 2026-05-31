@@ -104,27 +104,23 @@ def main():
 
     shared_genes = sorted(set(adata_a.var_names) & set(adata_b.var_names))
     print(f"Creating synthetic BLAST tables for {len(shared_genes)} shared genes...")
+
+    # SAMap expects: maps/{id_a}{id_b}/{id_a}_to_{id_b}.txt  (and the reverse)
+    # e.g. maps/dohu/do_to_hu.txt and maps/dohu/hu_to_do.txt
+    # The directory name is the two IDs concatenated (no separator).
+    pair_dir = os.path.join(maps_dir, f"{id_a}{id_b}")
+    os.makedirs(pair_dir, exist_ok=True)
+
     # BLAST outfmt 6: qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore
-    blast_row = lambda g: f"{g}\t{g}\t100.0\t100\t0\t0\t1\t100\t1\t100\t1e-99\t100\n"
-    for fname in [f"{id_a}_{id_b}.txt", f"{id_b}_{id_a}.txt"]:
-        with open(os.path.join(maps_dir, fname), "w") as fh:
-            for gene in shared_genes:
-                fh.write(blast_row(gene))
+    blast_row = lambda q, s: f"{q}\t{s}\t100.0\t100\t0\t0\t1\t100\t1\t100\t1e-99\t100\n"
+    with open(os.path.join(pair_dir, f"{id_a}_to_{id_b}.txt"), "w") as fh:
+        for gene in shared_genes:
+            fh.write(blast_row(gene, gene))
+    with open(os.path.join(pair_dir, f"{id_b}_to_{id_a}.txt"), "w") as fh:
+        for gene in shared_genes:
+            fh.write(blast_row(gene, gene))
 
     sams = {id_a: path_a, id_b: path_b}
-
-    # Diagnostics: confirm files exist and print samap source so we can debug path logic
-    import inspect
-    from samap import mapping as _samap_mod
-    print("=== BLAST files created ===")
-    for fname in os.listdir(maps_dir):
-        fpath = os.path.join(maps_dir, fname)
-        print(f"  {fpath}  size={os.path.getsize(fpath)}")
-    print(f"maps_dir='{maps_dir}'  id_a='{id_a}'  id_b='{id_b}'")
-    print("=== _calculate_blast_graph source ===")
-    print(inspect.getsource(_samap_mod._calculate_blast_graph))
-    print("=== end source ===")
-
     sm = SAMAP(sams, f_maps=maps_dir)
     sm.run(NUMITERS=args.num_epochs)
 
