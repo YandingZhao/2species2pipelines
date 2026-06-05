@@ -236,6 +236,55 @@ jobs:
               --input_b ${{ env.CONT_OUTDIR }}/task4_demo_b_ortholog.h5ad \
               --sample_id task4_demo --species_a dog --species_b human
 
+      # ── Normalization sweep: pearson_residuals (Python methods) ──────────
+      # Runs bbknn, scanorama, scvi, scgen with Pearson-residual normalization.
+      # Outputs are named task4_demo_pearson_*_integration.h5ad and picked up
+      # by the evaluation glob below alongside the default log_norm outputs.
+
+      - name: Normalization sweep — pearson_residuals  [Python]
+        run: |
+          for METHOD in bbknn scanorama scgen; do
+            echo "=== pearson_residuals / $METHOD ==="
+            docker run --rm \
+              -v ${{ github.workspace }}:/work \
+              -w ${{ env.CONT_OUTDIR }} \
+              ${{ env.PYTHON_IMAGE }} \
+              python3 /work/scripts/run_${METHOD}_module.py \
+                --input_a ${{ env.CONT_OUTDIR }}/task4_demo_a_ortholog.h5ad \
+                --input_b ${{ env.CONT_OUTDIR }}/task4_demo_b_ortholog.h5ad \
+                --sample_id task4_demo_pearson \
+                --species_a dog --species_b human \
+                --normalization pearson_residuals
+          done
+          # scVI always trains on raw counts regardless of normalization flag
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w ${{ env.CONT_OUTDIR }} \
+            ${{ env.PYTHON_IMAGE }} \
+            python3 /work/scripts/run_scvi_module.py \
+              --input_a ${{ env.CONT_OUTDIR }}/task4_demo_a_ortholog.h5ad \
+              --input_b ${{ env.CONT_OUTDIR }}/task4_demo_b_ortholog.h5ad \
+              --sample_id task4_demo_pearson \
+              --species_a dog --species_b human \
+              --normalization pearson_residuals
+
+      # ── Normalization sweep: raw_counts (scVI only) ───────────────────────
+      # Other methods need normalized data for PCA; raw_counts is only valid for
+      # model-based methods with an explicit count likelihood (scVI, scGen).
+
+      - name: Normalization sweep — raw_counts (scVI)  [Python]
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w ${{ env.CONT_OUTDIR }} \
+            ${{ env.PYTHON_IMAGE }} \
+            python3 /work/scripts/run_scvi_module.py \
+              --input_a ${{ env.CONT_OUTDIR }}/task4_demo_a_ortholog.h5ad \
+              --input_b ${{ env.CONT_OUTDIR }}/task4_demo_b_ortholog.h5ad \
+              --sample_id task4_demo_rawcounts \
+              --species_a dog --species_b human \
+              --normalization raw_counts
+
       # ── SAMap (sequence-based) ─────────────────────────────────────────────
 
       - name: SAMap  [SAMap image]

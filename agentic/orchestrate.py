@@ -131,7 +131,7 @@ def run_r_integration(method, input_a, input_b, sample_id, species_a, species_b,
     return Path(workdir) / f"{sample_id}_{method}_integration.rds"
 
 
-def run_python_integration(method, input_a, input_b, sample_id, species_a, species_b, workdir):
+def run_python_integration(method, input_a, input_b, sample_id, species_a, species_b, workdir, normalization="log_norm"):
     """Run a BBKNN / Scanorama / scVI / scGen integration. Returns integrated h5ad path."""
     script_map = {
         "bbknn": "run_bbknn_module.py",
@@ -145,7 +145,8 @@ def run_python_integration(method, input_a, input_b, sample_id, species_a, speci
         [PYTHON, str(SCRIPTS_DIR / script_map[method]),
          "--input_a", str(input_a), "--input_b", str(input_b),
          "--sample_id", sample_id,
-         "--species_a", species_a, "--species_b", species_b],
+         "--species_a", species_a, "--species_b", species_b,
+         "--normalization", normalization],
         cwd=str(workdir), label=f"{method}_integration",
     )
     return Path(workdir) / f"{sample_id}_{method}_integration.h5ad"
@@ -262,10 +263,13 @@ def run(
     outdir="results/agentic",
     skip_ortholog=False,
     skip_umap=False,
+    normalizations=None,
 ):
     """Programmatic entry point (also called by CLI). Returns the summary dict."""
     if methods is None:
         methods = sorted(ALL_METHODS)
+    if normalizations is None:
+        normalizations = ["log_norm"]
 
     input_a = Path(input_a).resolve()
     input_b = Path(input_b).resolve()
@@ -326,22 +330,29 @@ def run(
                 print(f"  ERROR: {exc}")
                 summary["methods"][method] = _method_result("failed", error=str(exc)[:800])
 
-        for method in py_methods:
-            print(f"\n[2/4] Running {method} (Python)")
-            try:
-                h5ad_out = run_python_integration(
-                    method, h5ad_a, h5ad_b, sample_id, species_a, species_b, tmpdir
-                )
-                final = outdir / h5ad_out.name
-                shutil.copy(h5ad_out, final)
-                integrated_h5ads.append(final)
-                report = _parse_report_txt(tmpdir / f"{sample_id}_{method}_report.txt")
-                summary["methods"][method] = _method_result(
-                    "ok", h5ad=str(final), run_report=report
-                )
-            except RuntimeError as exc:
-                print(f"  ERROR: {exc}")
-                summary["methods"][method] = _method_result("failed", error=str(exc)[:800])
+        for norm in normalizations:
+            # For multi-normalization sweeps, encode the normalization in the run id
+            norm_sample_id = f"{sample_id}_{norm}" if len(normalizations) > 1 else sample_id
+            for method in py_methods:
+                run_label = f"{norm}/{method}" if len(normalizations) > 1 else method
+                print(f"\n[2/4] Running {run_label} (Python)")
+                try:
+                    h5ad_out = run_python_integration(
+                        method, h5ad_a, h5ad_b, norm_sample_id, species_a, species_b, tmpdir,
+                        normalization=norm,
+                    )
+                    final = outdir / h5ad_out.name
+                    shutil.copy(h5ad_out, final)
+                    integrated_h5ads.append(final)
+                    report = _parse_report_txt(tmpdir / f"{norm_sample_id}_{method}_report.txt")
+                    key = f"{norm}/{method}" if len(normalizations) > 1 else method
+                    summary["methods"][key] = _method_result(
+                        "ok", h5ad=str(final), run_report=report
+                    )
+                except RuntimeError as exc:
+                    print(f"  ERROR: {exc}")
+                    key = f"{norm}/{method}" if len(normalizations) > 1 else method
+                    summary["methods"][key] = _method_result("failed", error=str(exc)[:800])
 
         # ── Step 3: Evaluate ─────────────────────────────────────────────────
         print(f"\n[3/4] scIB evaluation  ({len(integrated_h5ads)} outputs)")
@@ -421,6 +432,13 @@ def main():
         help="Skip ortholog conversion (inputs already share gene space)",
     )
     parser.add_argument("--skip_umap", action="store_true", help="Skip UMAP generation")
+    parser.add_argument(
+        "--normalizations", nargs="+",
+        default=["log_norm"],
+        choices=["log_norm", "pearson_residuals", "raw_counts"],
+        help="Normalization methods to sweep (Python methods only). "
+             "Multiple values produce one run per normalization.",
+    )
     args = parser.parse_args()
 
     run(
@@ -433,6 +451,7 @@ def main():
         outdir=args.outdir,
         skip_ortholog=args.skip_ortholog,
         skip_umap=args.skip_umap,
+        normalizations=args.normalizations,
     )
 
 

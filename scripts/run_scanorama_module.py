@@ -2,7 +2,9 @@
 """Run Scanorama integration for one pair of .h5ad inputs."""
 
 import argparse
+import os
 import random
+import sys
 import time
 
 import anndata as ad
@@ -12,6 +14,9 @@ import scanorama
 import scanpy as sc
 import scipy.sparse as sp
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from normalization import NORM_METHODS, apply_normalization
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Scanorama integration module")
@@ -20,6 +25,10 @@ def parse_args():
     parser.add_argument("--sample_id", required=True)
     parser.add_argument("--species_a", required=True)
     parser.add_argument("--species_b", required=True)
+    parser.add_argument(
+        "--normalization", default="log_norm", choices=NORM_METHODS,
+        help="Normalization applied before integration.",
+    )
     return parser.parse_args()
 
 
@@ -58,8 +67,7 @@ def main():
 
     adatas = [adata_a.copy(), adata_b.copy()]
     for item in adatas:
-        sc.pp.normalize_total(item)
-        sc.pp.log1p(item)
+        apply_normalization(item, args.normalization)
         if sp.issparse(item.X):
             item.X = item.X.tocsr()
 
@@ -95,6 +103,7 @@ def main():
         handle.write(f"genes: {adata_scanorama.n_vars}\n")
         handle.write(f"scanorama_dims: {embedding.shape[1]}\n")
         handle.write(f"seed: {seed}\n")
+        handle.write(f"normalization: {args.normalization}\n")
         handle.write(f"elapsed_seconds: {elapsed:.2f}\n")
         handle.write("status: ok\n")
 

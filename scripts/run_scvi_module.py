@@ -2,7 +2,9 @@
 """Run scVI integration for one pair of .h5ad inputs."""
 
 import argparse
+import os
 import random
+import sys
 import time
 
 import anndata as ad
@@ -12,6 +14,9 @@ import scanpy as sc
 import scipy.sparse as sp
 import scvi
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from normalization import NORM_METHODS, apply_normalization
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="scVI integration module")
@@ -20,6 +25,10 @@ def parse_args():
     parser.add_argument("--sample_id", required=True)
     parser.add_argument("--species_a", required=True)
     parser.add_argument("--species_b", required=True)
+    parser.add_argument(
+        "--normalization", default="raw_counts", choices=NORM_METHODS,
+        help="Normalization of X; scVI model always trains on raw counts from layers['counts'].",
+    )
     return parser.parse_args()
 
 
@@ -65,7 +74,10 @@ def main():
     np.random.seed(seed)
     scvi.settings.seed = seed
 
-    scvi.model.SCVI.setup_anndata(adata_all, batch_key="batch")
+    # apply_normalization stores raw in layers["counts"]; scVI always trains on raw
+    apply_normalization(adata_all, args.normalization)
+    layer = "counts" if "counts" in adata_all.layers else None
+    scvi.model.SCVI.setup_anndata(adata_all, batch_key="batch", layer=layer)
 
     start = time.time()
     model = scvi.model.SCVI(adata_all, n_layers=2, n_latent=30)
@@ -97,6 +109,7 @@ def main():
         handle.write(f"genes: {adata_all.n_vars}\n")
         handle.write(f"latent_dims: {latent.shape[1]}\n")
         handle.write(f"seed: {seed}\n")
+        handle.write(f"normalization: {args.normalization}\n")
         handle.write(f"elapsed_seconds: {elapsed:.2f}\n")
         handle.write("status: ok\n")
 

@@ -9,12 +9,17 @@ BLAST is run internally via SAMap's built-in wrapper — no pre-computed files n
 """
 
 import argparse
+import os
+import sys
 import time
 
 import anndata as ad
 import numpy as np
 import pandas as pd
 import scanpy as sc
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from normalization import NORM_METHODS, apply_normalization
 
 
 def parse_args():
@@ -31,6 +36,10 @@ def parse_args():
     parser.add_argument(
         "--num_epochs", type=int, default=10,
         help="Number of SAMap training epochs.",
+    )
+    parser.add_argument(
+        "--normalization", default="log_norm", choices=NORM_METHODS,
+        help="Normalization applied before SAMap.",
     )
     return parser.parse_args()
 
@@ -78,10 +87,9 @@ def main():
     adata_a.obs["batch"] = f"{args.sample_id}_{args.species_a}"
     adata_b.obs["batch"] = f"{args.sample_id}_{args.species_b}"
 
-    # Preprocess per species as SAMap expects normalised + log data
+    # Preprocess per species: normalize then select HVGs
     for adata, n in [(adata_a, args.n_top_genes), (adata_b, args.n_top_genes)]:
-        sc.pp.normalize_total(adata)
-        sc.pp.log1p(adata)
+        apply_normalization(adata, args.normalization)
         n_hvg = min(n, adata.n_vars)
         sc.pp.highly_variable_genes(adata, n_top_genes=n_hvg)
 
@@ -180,6 +188,7 @@ def main():
         fh.write(f"cells: {adata_combined.n_obs}\n")
         fh.write(f"embedding_key: {embedding_key}\n")
         fh.write(f"embedding_dims: {embedding.shape[1]}\n")
+        fh.write(f"normalization: {args.normalization}\n")
         fh.write(f"elapsed_seconds: {elapsed:.2f}\n")
         fh.write("status: ok\n")
 

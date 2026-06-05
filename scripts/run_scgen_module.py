@@ -2,7 +2,9 @@
 """Run scGen integration for one pair of .h5ad inputs."""
 
 import argparse
+import os
 import random
+import sys
 import time
 
 import anndata as ad
@@ -13,6 +15,9 @@ import scipy.sparse as sp
 import scgen
 import scvi
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from normalization import NORM_METHODS, apply_normalization
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="scGen integration module")
@@ -21,6 +26,10 @@ def parse_args():
     parser.add_argument("--sample_id", required=True)
     parser.add_argument("--species_a", required=True)
     parser.add_argument("--species_b", required=True)
+    parser.add_argument(
+        "--normalization", default="log_norm", choices=NORM_METHODS,
+        help="Normalization applied before scGen training.",
+    )
     return parser.parse_args()
 
 
@@ -70,9 +79,7 @@ def main():
     np.random.seed(seed)
     scvi.settings.seed = seed
 
-    # Normalise and log-transform before scGen training (matches benchmark).
-    sc.pp.normalize_total(adata_all)
-    sc.pp.log1p(adata_all)
+    apply_normalization(adata_all, args.normalization)
 
     # scGen requires explicit celltype label; use "celltype" obs column.
     adata_all.obs["celltype"] = adata_all.obs["celltype"].astype(str)
@@ -120,6 +127,7 @@ def main():
         handle.write(f"genes: {corrected_adata.n_vars}\n")
         handle.write(f"latent_dims: {latent.shape[1]}\n")
         handle.write(f"seed: {seed}\n")
+        handle.write(f"normalization: {args.normalization}\n")
         handle.write(f"elapsed_seconds: {elapsed:.2f}\n")
         handle.write("status: ok\n")
 
