@@ -333,9 +333,9 @@ jobs:
             -w ${{ env.CONT_OUTDIR }} \
             ${{ env.R_IMAGE }} \
             Rscript /work/scripts/run_normalize_scran.R \
-              --input_a  ${{ env.CONT_OUTDIR }}/task4_demo_a_ortholog.h5ad \
+              --input_a  ${{ env.CONT_OUTDIR }}/task4_demo_a_ortholog.rds \
               --output_a ${{ env.CONT_OUTDIR }}/task4_demo_a_scran.h5ad \
-              --input_b  ${{ env.CONT_OUTDIR }}/task4_demo_b_ortholog.h5ad \
+              --input_b  ${{ env.CONT_OUTDIR }}/task4_demo_b_ortholog.rds \
               --output_b ${{ env.CONT_OUTDIR }}/task4_demo_b_scran.h5ad
 
       - name: Normalization sweep — scran integrations  [Python]

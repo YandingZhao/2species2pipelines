@@ -1,27 +1,32 @@
 #!/usr/bin/env Rscript
-# Apply scran pooling-based normalization to a pair of raw h5ad files.
+# Apply scran pooling-based normalization to a pair of Seurat RDS files.
 #
-# scran (Lun et al. 2016) estimates size factors via deconvolution from
-# pooled cells, handling composition bias between batches/species better
+# scran (Lun et al. 2016) estimates size factors via pooling-based
+# deconvolution, handling composition bias between batches/species better
 # than simple library-size normalization.
 #
-# Output h5ad files have:
-#   X             = scran log-normalized counts  (log1p of scran-scaled counts)
-#   layers/counts = raw integer counts           (preserved for scVI / scGen)
+# Inputs : ortholog-converted Seurat RDS files (raw counts in the counts slot)
+# Outputs: h5ad files with
+#            X             = scran log-normalized counts
+#            layers/counts = raw integer counts (preserved for scVI / scGen)
+#
+# Avoids zellkonverter::readH5AD() (which triggers basilisk → Python compile)
+# by reading Seurat RDS directly and writing h5ad via an inline Python call —
+# the same pattern used in run_seurat_to_anndata.R.
 
 suppressPackageStartupMessages({
+  library(Seurat)
   library(SingleCellExperiment)
   library(scran)
   library(scuttle)
-  library(zellkonverter)
   library(Matrix)
 })
 
 args <- commandArgs(trailingOnly = TRUE)
 
 get_arg <- function(name, required = TRUE) {
-  key  <- paste0("--", name)
-  idx  <- which(args == key)
+  key <- paste0("--", name)
+  idx <- which(args == key)
   if (length(idx) == 0 || idx == length(args)) {
     if (required) stop(paste("Missing required argument:", key), call. = FALSE)
     return(NULL)
@@ -29,55 +34,122 @@ get_arg <- function(name, required = TRUE) {
   args[idx + 1]
 }
 
-normalize_one <- function(input_h5ad, output_h5ad) {
-  message("  Reading: ", input_h5ad)
-  sce <- readH5AD(input_h5ad, X_name = "X")
+# ── Extract raw counts from a Seurat object ──────────────────────────────────
+extract_counts <- function(obj) {
+  DefaultAssay(obj) <- "RNA"
+  all_layers   <- tryCatch(Layers(obj[["RNA"]]), error = function(e) character(0))
+  count_layers <- grep("^counts", all_layers, value = TRUE)
 
-  # Coerce X to integer counts (run_seurat_to_anndata.R exports raw counts)
-  raw <- assay(sce, "X")
-  if (!is.integer(raw)) {
-    raw <- round(raw)
-    storage.mode(raw) <- "integer"
+  if (length(count_layers) > 1) {
+    matrices <- lapply(count_layers, function(lyr) {
+      m <- tryCatch(LayerData(obj, assay = "RNA", layer = lyr), error = function(e) NULL)
+      if (!is.null(m) && !inherits(m, "dgCMatrix")) m <- as(m, "dgCMatrix")
+      m
+    })
+    matrices <- Filter(Negate(is.null), matrices)
+    counts   <- do.call(cbind, matrices)[, colnames(obj), drop = FALSE]
+  } else {
+    counts <- tryCatch(
+      LayerData(obj, assay = "RNA",
+                layer = if (length(count_layers) == 1) count_layers else "counts"),
+      error = function(e) GetAssayData(obj, assay = "RNA", slot = "counts")
+    )
   }
-  # Store raw under the canonical "counts" assay name
-  assay(sce, "counts") <- raw
+  if (!inherits(counts, "dgCMatrix")) counts <- as(counts, "dgCMatrix")
+  counts
+}
 
-  # Quick clustering for robust size-factor estimation; fall back gracefully
-  # if the dataset is too small for the default min.size.
-  n_cells   <- ncol(sce)
-  min_size  <- max(10L, as.integer(n_cells %/% 20L))
-  message("  quickCluster (", n_cells, " cells, min.size=", min_size, ")...")
+# ── Write h5ad via inline Python (no zellkonverter / basilisk needed) ─────────
+write_h5ad <- function(norm_mtx_file, raw_mtx_file, obs_file, var_file, output_h5ad) {
+  py_file <- tempfile(fileext = ".py")
+  writeLines(c(
+    "import sys, numpy as np, anndata as ad, pandas as pd, scipy.sparse as sp",
+    "from scipy.io import mmread",
+    "norm_mtx, raw_mtx, obs_f, var_f, out = sys.argv[1:6]",
+    "X_norm = mmread(norm_mtx).tocsr().T",
+    "X_raw  = mmread(raw_mtx ).tocsr().T",
+    "obs = pd.read_csv(obs_f, sep='\\t', index_col=0)",
+    "var = pd.read_csv(var_f, sep='\\t', index_col=0)",
+    "obs.index = obs.index.astype(str)",
+    "var.index = var.index.astype(str)",
+    "adata = ad.AnnData(X=X_norm, obs=obs, var=var)",
+    "adata.layers['counts'] = X_raw",
+    "adata.write_h5ad(out)"
+  ), con = py_file)
+
+  py_exec <- Sys.getenv("RETICULATE_PYTHON")
+  if (!nzchar(py_exec)) py_exec <- "python3"
+
+  status <- system2(py_exec,
+    c(py_file, norm_mtx_file, raw_mtx_file, obs_file, var_file, output_h5ad))
+  unlink(py_file)
+  if (!identical(status, 0L)) stop("Python h5ad write failed", call. = FALSE)
+}
+
+# ── Main normalization function ───────────────────────────────────────────────
+normalize_one <- function(input_rds, output_h5ad) {
+  message("Reading: ", input_rds)
+  obj <- readRDS(input_rds)
+  if (!inherits(obj, "Seurat"))
+    stop(paste("Not a Seurat object:", input_rds), call. = FALSE)
+
+  raw <- extract_counts(obj)
+  message("  Cells: ", ncol(raw), "  Genes: ", nrow(raw))
+
+  # Build a minimal SingleCellExperiment for scran
+  sce <- SingleCellExperiment(assays = list(counts = raw))
+
+  n_cells  <- ncol(sce)
+  min_size <- max(10L, as.integer(n_cells %/% 20L))
+  message("  quickCluster (min.size=", min_size, ")...")
   clusters <- tryCatch(
     quickCluster(sce, assay.type = "counts", min.size = min_size),
     error = function(e) {
       message("  quickCluster failed (", conditionMessage(e),
-              "); falling back to single cluster.")
+              "); using single cluster")
       factor(rep("1", n_cells))
     }
   )
 
   message("  computeSumFactors...")
   sce <- computeSumFactors(sce, clusters = clusters, assay.type = "counts")
-
-  # logNormCounts uses the computed sizeFactors() and stores result in "logcounts"
   sce <- logNormCounts(sce, assay.type = "counts", log = TRUE)
 
-  # Rename "logcounts" → "X" so zellkonverter writes it as AnnData.X
-  assay(sce, "X") <- assay(sce, "logcounts")
-  assay(sce, "logcounts") <- NULL
+  norm_counts <- assay(sce, "logcounts")   # scran log-normalized
+  raw_counts  <- assay(sce, "counts")      # original integers
+
+  # Build obs / var data frames from the Seurat object metadata
+  obs <- obj@meta.data[colnames(raw_counts), , drop = FALSE]
+  if (!("batch"    %in% colnames(obs))) obs$batch    <- "unknown"
+  if (!("celltype" %in% colnames(obs))) obs$celltype <- "unknown"
+  var <- data.frame(gene = rownames(raw_counts),
+                    row.names = rownames(raw_counts),
+                    stringsAsFactors = FALSE)
+
+  # Write temp files then h5ad
+  norm_mtx_file <- tempfile(fileext = ".mtx")
+  raw_mtx_file  <- tempfile(fileext = ".mtx")
+  obs_file      <- tempfile(fileext = ".tsv")
+  var_file      <- tempfile(fileext = ".tsv")
+
+  writeMM(norm_counts, file = norm_mtx_file)
+  writeMM(raw_counts,  file = raw_mtx_file)
+  write.table(obs, file = obs_file, sep = "\t", quote = FALSE, col.names = NA)
+  write.table(var, file = var_file, sep = "\t", quote = FALSE, col.names = NA)
 
   message("  Writing: ", output_h5ad)
-  writeH5AD(sce, output_h5ad)
+  write_h5ad(norm_mtx_file, raw_mtx_file, obs_file, var_file, output_h5ad)
+  unlink(c(norm_mtx_file, raw_mtx_file, obs_file, var_file))
 }
 
-input_a  <- get_arg("input_a")
-output_a <- get_arg("output_a")
-normalize_one(input_a, output_a)
+# ── Entry point ───────────────────────────────────────────────────────────────
+normalize_one(get_arg("input_a"), get_arg("output_a"))
 
-input_b  <- get_arg("input_b",  required = FALSE)
-output_b <- get_arg("output_b", required = FALSE)
-if (!is.null(input_b) && !is.null(output_b)) {
-  normalize_one(input_b, output_b)
-} else {
-  message("No second input provided, skipping input_b.")
-}
+tryCatch({
+  input_b  <- get_arg("input_b",  required = FALSE)
+  output_b <- get_arg("output_b", required = FALSE)
+  if (!is.null(input_b) && !is.null(output_b))
+    normalize_one(input_b, output_b)
+  else
+    message("No second input provided, skipping input_b.")
+}, error = function(e) message("input_b skipped: ", conditionMessage(e)))
