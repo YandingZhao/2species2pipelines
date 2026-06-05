@@ -37,6 +37,7 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
+      r:     ${{ steps.filter.outputs.r }}
       samap: ${{ steps.filter.outputs.samap }}
       saturn: ${{ steps.filter.outputs.saturn }}
     steps:
@@ -45,10 +46,44 @@ jobs:
         id: filter
         with:
           filters: |
+            r:
+              - 'docker/Dockerfile-r'
             samap:
               - 'docker/Dockerfile-samap'
             saturn:
               - 'docker/Dockerfile-saturn'
+
+  # ── Build & push R image (only when Dockerfile-r changed) ───────────────────
+  build-r:
+    needs: changes
+    if: needs.changes.outputs.r == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Compute image tags
+        id: meta
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "tags=${{ env.R_IMAGE }}:pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          else
+            echo "tags=${{ env.R_IMAGE }}" >> $GITHUB_OUTPUT
+          fi
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile-r
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
 
   # ── Build & push SAMap image (only when Dockerfile-samap changed) ────────────
   build-samap:
@@ -116,7 +151,7 @@ jobs:
 
   # ── All-methods test ─────────────────────────────────────────────────────────
   all-methods-test:
-    needs: [build-samap, build-saturn]
+    needs: [build-r, build-samap, build-saturn]
     if: always()
     runs-on: ubuntu-latest
     permissions:
@@ -284,6 +319,51 @@ jobs:
               --sample_id task4_demo_rawcounts \
               --species_a dog --species_b human \
               --normalization raw_counts
+
+      # ── Normalization sweep: scran ─────────────────────────────────────────
+      # scran uses pooling-based deconvolution size factors (Lun et al. 2016),
+      # which handle cross-batch composition bias better than library-size norm.
+      # Step 1: apply scran in R → pre-normalized h5ad pair
+      # Step 2: run Python integrations on that pair with --normalization scran
+
+      - name: Normalization sweep — scran preprocessing  [R]
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w ${{ env.CONT_OUTDIR }} \
+            ${{ env.R_IMAGE }} \
+            Rscript /work/scripts/run_normalize_scran.R \
+              --input_a  ${{ env.CONT_OUTDIR }}/task4_demo_a_ortholog.h5ad \
+              --output_a ${{ env.CONT_OUTDIR }}/task4_demo_a_scran.h5ad \
+              --input_b  ${{ env.CONT_OUTDIR }}/task4_demo_b_ortholog.h5ad \
+              --output_b ${{ env.CONT_OUTDIR }}/task4_demo_b_scran.h5ad
+
+      - name: Normalization sweep — scran integrations  [Python]
+        run: |
+          for METHOD in bbknn scanorama scgen; do
+            echo "=== scran / $METHOD ==="
+            docker run --rm \
+              -v ${{ github.workspace }}:/work \
+              -w ${{ env.CONT_OUTDIR }} \
+              ${{ env.PYTHON_IMAGE }} \
+              python3 /work/scripts/run_${METHOD}_module.py \
+                --input_a ${{ env.CONT_OUTDIR }}/task4_demo_a_scran.h5ad \
+                --input_b ${{ env.CONT_OUTDIR }}/task4_demo_b_scran.h5ad \
+                --sample_id task4_demo_scran \
+                --species_a dog --species_b human \
+                --normalization scran
+          done
+          # scVI uses layers["counts"] (raw) regardless of normalization flag
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w ${{ env.CONT_OUTDIR }} \
+            ${{ env.PYTHON_IMAGE }} \
+            python3 /work/scripts/run_scvi_module.py \
+              --input_a ${{ env.CONT_OUTDIR }}/task4_demo_a_scran.h5ad \
+              --input_b ${{ env.CONT_OUTDIR }}/task4_demo_b_scran.h5ad \
+              --sample_id task4_demo_scran \
+              --species_a dog --species_b human \
+              --normalization scran
 
       # ── SAMap (sequence-based) ─────────────────────────────────────────────
 
