@@ -43,7 +43,7 @@ if (!("celltype" %in% colnames(merged@meta.data))) {
 if (normalization == "sctransform") {
   merged <- SCTransform(merged, verbose = FALSE)
   merged <- RunPCA(merged, assay = "SCT", npcs = 30, verbose = FALSE)
-  merged <- RunHarmony(merged, group.by.vars = "batch", assay.use = "SCT")
+  merged <- RunHarmony(merged, group.by.vars = "batch")
 } else {
   merged <- NormalizeData(merged)
   nfeatures <- min(2000, nrow(merged))
