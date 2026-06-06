@@ -2,6 +2,22 @@ suppressPackageStartupMessages({
   library(Seurat)
 })
 
+scran_lognorm <- function(obj) {
+  suppressPackageStartupMessages({
+    library(SingleCellExperiment); library(scran); library(scuttle)
+  })
+  counts_mat <- LayerData(obj, assay = "RNA", layer = "counts")
+  sce   <- SingleCellExperiment(assays = list(counts = counts_mat))
+  n     <- ncol(sce)
+  minsz <- max(10L, as.integer(n %/% 20L))
+  clust <- tryCatch(quickCluster(sce, assay.type = "counts", min.size = minsz),
+                    error = function(e) factor(rep("1", n)))
+  sce   <- computeSumFactors(sce, clusters = clust, assay.type = "counts")
+  sce   <- logNormCounts(sce, assay.type = "counts", log = TRUE)
+  LayerData(obj, assay = "RNA", layer = "data") <- logcounts(sce)
+  obj
+}
+
 args <- commandArgs(trailingOnly = TRUE)
 
 get_arg <- function(name, required = TRUE) {
@@ -49,6 +65,18 @@ if (normalization == "sctransform") {
                                      normalization.method = "SCT",
                                      anchor.features = features)
   combined <- IntegrateData(anchorset = anchors, normalization.method = "SCT")
+  DefaultAssay(combined) <- "integrated"
+  combined <- ScaleData(combined, verbose = FALSE)
+  combined <- RunPCA(combined, npcs = 30, verbose = FALSE)
+} else if (normalization == "scran") {
+  obj_list <- lapply(obj_list, function(x) {
+    x <- scran_lognorm(x)
+    nfeature <- min(2000, nrow(x))
+    FindVariableFeatures(x, selection.method = "vst", nfeatures = nfeature)
+  })
+  features <- SelectIntegrationFeatures(object.list = obj_list)
+  anchors  <- FindIntegrationAnchors(object.list = obj_list, anchor.features = features)
+  combined <- IntegrateData(anchorset = anchors)
   DefaultAssay(combined) <- "integrated"
   combined <- ScaleData(combined, verbose = FALSE)
   combined <- RunPCA(combined, npcs = 30, verbose = FALSE)

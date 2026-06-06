@@ -101,6 +101,9 @@ def main() -> None:
 
     benchmarker.benchmark()
     raw_results = benchmarker.get_results(min_max_scale=False)
+    # cLISI on a single-label dataset yields -inf; treat as NaN so it doesn't
+    # collapse the bio-conservation mean to -inf in downstream aggregation.
+    raw_results = raw_results.replace([np.inf, -np.inf], np.nan)
 
     raw_results.transpose().to_csv(metrics_path, sep="\t")
 

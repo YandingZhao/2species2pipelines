@@ -400,6 +400,28 @@ jobs:
                 --normalization sctransform
           done
 
+      - name: Normalization sweep — scran R methods  [R]
+        run: |
+          for METHOD in harmony seurat4 fastmnn; do
+            echo "=== scran / $METHOD ==="
+            docker run --rm \
+              -v ${{ github.workspace }}:/work \
+              -w ${{ env.CONT_OUTDIR }} \
+              ${{ env.R_IMAGE }} \
+              Rscript /work/scripts/run_${METHOD}_module.R \
+                --input_a ${{ env.CONT_OUTDIR }}/task4_demo_a_ortholog.rds \
+                --input_b ${{ env.CONT_OUTDIR }}/task4_demo_b_ortholog.rds \
+                --sample_id task4_demo_scran \
+                --species_a dog --species_b human \
+                --normalization scran
+            docker run --rm \
+              -v ${{ github.workspace }}:/work \
+              -w ${{ env.CONT_OUTDIR }} \
+              ${{ env.R_IMAGE }} \
+              Rscript /work/scripts/run_seurat_to_anndata.R \
+                --input_a ${{ env.CONT_OUTDIR }}/task4_demo_scran_${METHOD}_integration.rds
+          done
+
       - name: Normalization sweep — sctransform R methods  [R]
         run: |
           for METHOD in harmony seurat4 fastmnn; do

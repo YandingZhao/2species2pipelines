@@ -3,6 +3,22 @@ suppressPackageStartupMessages({
   library(SeuratWrappers)
 })
 
+scran_lognorm <- function(obj) {
+  suppressPackageStartupMessages({
+    library(SingleCellExperiment); library(scran); library(scuttle)
+  })
+  counts_mat <- LayerData(obj, assay = "RNA", layer = "counts")
+  sce   <- SingleCellExperiment(assays = list(counts = counts_mat))
+  n     <- ncol(sce)
+  minsz <- max(10L, as.integer(n %/% 20L))
+  clust <- tryCatch(quickCluster(sce, assay.type = "counts", min.size = minsz),
+                    error = function(e) factor(rep("1", n)))
+  sce   <- computeSumFactors(sce, clusters = clust, assay.type = "counts")
+  sce   <- logNormCounts(sce, assay.type = "counts", log = TRUE)
+  LayerData(obj, assay = "RNA", layer = "data") <- logcounts(sce)
+  obj
+}
+
 args <- commandArgs(trailingOnly = TRUE)
 
 get_arg <- function(name, required = TRUE) {
@@ -52,6 +68,11 @@ merged <- merge(obj_a, y = obj_b, add.cell.ids = c("a", "b"))
 if (normalization == "sctransform") {
   merged <- SCTransform(merged, verbose = FALSE)
   DefaultAssay(merged) <- "SCT"
+} else if (normalization == "scran") {
+  merged <- scran_lognorm(merged)
+  nfeature <- min(2000, nrow(merged))
+  merged <- FindVariableFeatures(merged, selection.method = "vst", nfeatures = nfeature)
+  merged <- ScaleData(merged, verbose = FALSE)
 } else {
   merged <- NormalizeData(merged)
   nfeature <- min(2000, nrow(merged))
