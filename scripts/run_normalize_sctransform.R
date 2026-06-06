@@ -77,12 +77,12 @@ normalize_one <- function(input_rds, output_h5ad) {
 
   DefaultAssay(obj) <- "SCT"
   # scale.data contains Pearson residuals for HVGs (genes × cells, dense)
-  resid <- GetAssayData(obj, assay = "SCT", slot = "scale.data")
+  resid <- LayerData(obj, assay = "SCT", layer = "scale.data")
   hvg_genes <- rownames(resid)
   message("  HVGs: ", length(hvg_genes))
 
   # Raw counts restricted to the same HVG gene set for layers["counts"]
-  raw <- GetAssayData(obj, assay = "RNA", slot = "counts")[hvg_genes, , drop = FALSE]
+  raw <- LayerData(obj, assay = "RNA", layer = "counts")[hvg_genes, , drop = FALSE]
   if (!inherits(raw,   "dgCMatrix")) raw   <- as(raw,   "dgCMatrix")
   if (!inherits(resid, "dgCMatrix")) resid <- as(resid, "dgCMatrix")
 
