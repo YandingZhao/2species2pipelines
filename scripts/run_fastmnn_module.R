@@ -39,6 +39,21 @@ species_a     <- get_arg("species_a")
 species_b     <- get_arg("species_b")
 normalization <- get_arg("normalization", required = FALSE)
 if (is.null(normalization)) normalization <- "norm_data"
+features_file <- get_arg("features_file", required = FALSE)
+
+apply_features <- function(obj, features_file, n = 2000) {
+  if (!is.null(features_file)) {
+    genes <- readLines(features_file)
+    genes <- intersect(genes, rownames(obj))
+    if (length(genes) < 10)
+      stop("features_file has fewer than 10 valid genes after intersection", call. = FALSE)
+    VariableFeatures(obj) <- genes
+  } else {
+    obj <- FindVariableFeatures(obj, selection.method = "vst",
+                                nfeatures = min(n, nrow(obj)), verbose = FALSE)
+  }
+  obj
+}
 
 obj_a <- readRDS(input_a)
 obj_b <- readRDS(input_b)
@@ -69,15 +84,18 @@ merged <- merge(obj_a, y = obj_b, add.cell.ids = c("a", "b"))
 if (normalization == "sctransform") {
   merged <- SCTransform(merged, verbose = FALSE)
   DefaultAssay(merged) <- "SCT"
+  merged <- apply_features(merged, features_file)
 } else if (normalization == "scran") {
   merged <- scran_lognorm(merged)
-  nfeature <- min(2000, nrow(merged))
-  merged <- FindVariableFeatures(merged, selection.method = "vst", nfeatures = nfeature)
+  merged <- apply_features(merged, features_file)
+  merged <- ScaleData(merged, verbose = FALSE)
+} else if (normalization == "pre_normalized") {
+  merged <- JoinLayers(merged, assay = "RNA")
+  merged <- apply_features(merged, features_file)
   merged <- ScaleData(merged, verbose = FALSE)
 } else {
   merged <- NormalizeData(merged)
-  nfeature <- min(2000, nrow(merged))
-  merged <- FindVariableFeatures(merged, selection.method = "vst", nfeatures = nfeature)
+  merged <- apply_features(merged, features_file)
   merged <- ScaleData(merged, verbose = FALSE)
 }
 
@@ -111,6 +129,9 @@ writeLines(
     paste("sample:", sample_id),
     paste("species_a:", species_a),
     paste("species_b:", species_b),
+    paste("normalization:", normalization),
+    paste("features_file:", if (!is.null(features_file)) features_file else "none"),
+    paste("n_genes_used:", length(VariableFeatures(merged))),
     paste("cells:", nrow(emb)),
     paste("dims:", ncol(Embeddings(merged, reduction = "mnn"))),
     "status: ok"

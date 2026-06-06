@@ -24,6 +24,12 @@ RUN pip install --no-cache-dir --default-timeout=300 --retries=10 \
     scipy==1.17.1 \
     scikit-learn==1.5.2
 
+# Feature selection methods (Phase 2)
+RUN pip install --no-cache-dir --default-timeout=300 --retries=10 \
+    triku==2.2.0 \
+    hotspot==0.9.2 \
+    anticor-features==0.1.8
+
 # scgen 2.x was written against an older scvi-tools API. Two private symbols
 # were removed/renamed in scvi-tools 1.x; add compatibility shims so imports resolve.
 #   1. scvi._compat.Literal  → typing.Literal (dropped when Python 3.7 support ended)

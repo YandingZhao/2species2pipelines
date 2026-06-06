@@ -41,6 +41,22 @@ species_a     <- get_arg("species_a")
 species_b     <- get_arg("species_b")
 normalization <- get_arg("normalization", required = FALSE)
 if (is.null(normalization)) normalization <- "norm_data"
+features_file <- get_arg("features_file", required = FALSE)
+
+# Helper: use external feature list when provided, else find variable features.
+apply_features <- function(obj, features_file, n = 2000) {
+  if (!is.null(features_file)) {
+    genes <- readLines(features_file)
+    genes <- intersect(genes, rownames(obj))
+    if (length(genes) < 10)
+      stop("features_file has fewer than 10 valid genes after intersection", call. = FALSE)
+    VariableFeatures(obj) <- genes
+  } else {
+    obj <- FindVariableFeatures(obj, selection.method = "vst",
+                                nfeatures = min(n, nrow(obj)), verbose = FALSE)
+  }
+  obj
+}
 
 obj_a <- readRDS(input_a)
 obj_b <- readRDS(input_b)
@@ -61,19 +77,26 @@ if (!("celltype" %in% colnames(merged@meta.data))) {
 
 if (normalization == "sctransform") {
   merged <- SCTransform(merged, verbose = FALSE)
-  merged <- RunPCA(merged, assay = "SCT", npcs = 30, verbose = FALSE)
+  merged <- apply_features(merged, features_file)
+  merged <- ScaleData(merged, verbose = FALSE)
+  merged <- RunPCA(merged, npcs = 30, verbose = FALSE)
   merged <- RunHarmony(merged, group.by.vars = "batch")
 } else if (normalization == "scran") {
   merged <- scran_lognorm(merged)
-  nfeatures <- min(2000, nrow(merged))
-  merged <- FindVariableFeatures(merged, selection.method = "vst", nfeatures = nfeatures)
+  merged <- apply_features(merged, features_file)
+  merged <- ScaleData(merged)
+  merged <- RunPCA(merged, npcs = 30, verbose = FALSE)
+  merged <- RunHarmony(merged, group.by.vars = "batch", theta = 2)
+} else if (normalization == "pre_normalized") {
+  # Input was normalized externally by run_normalize_r.R; skip normalization.
+  merged <- JoinLayers(merged, assay = "RNA")
+  merged <- apply_features(merged, features_file)
   merged <- ScaleData(merged)
   merged <- RunPCA(merged, npcs = 30, verbose = FALSE)
   merged <- RunHarmony(merged, group.by.vars = "batch", theta = 2)
 } else {
   merged <- NormalizeData(merged)
-  nfeatures <- min(2000, nrow(merged))
-  merged <- FindVariableFeatures(merged, selection.method = "vst", nfeatures = nfeatures)
+  merged <- apply_features(merged, features_file)
   merged <- ScaleData(merged)
   merged <- RunPCA(merged, npcs = 30, verbose = FALSE)
   merged <- RunHarmony(merged, group.by.vars = "batch", theta = 2)
@@ -95,6 +118,9 @@ writeLines(
     paste("sample:", sample_id),
     paste("species_a:", species_a),
     paste("species_b:", species_b),
+    paste("normalization:", normalization),
+    paste("features_file:", if (!is.null(features_file)) features_file else "none"),
+    paste("n_genes_used:", length(VariableFeatures(merged))),
     paste("cells:", ncol(merged)),
     paste("genes:", nrow(merged)),
     "status: ok"

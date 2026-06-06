@@ -37,6 +37,9 @@ FS_METHODS = (
     "mean",
     "variance",
     "wilcoxon",
+    "triku",
+    "hotspot",
+    "anticor",
     "random",
     "all",
 )
@@ -172,5 +175,81 @@ def select_features(
                     seen.add(gene)
                     genes.append(gene)
         return genes[:n_features]
+
+    # ------------------------------------------------------------------
+    # triku: graph-based, uses KNN autocorrelation (Miró-Blanch & Yanes 2021)
+    if method == "triku":
+        try:
+            import triku
+        except ImportError as exc:
+            raise ImportError("triku required: pip install triku") from exc
+        tmp = _lognorm_copy(adata)
+        n_comps = min(30, tmp.n_vars - 1, tmp.n_obs - 1)
+        sc.pp.pca(tmp, n_comps=n_comps)
+        sc.pp.neighbors(tmp, n_neighbors=15)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            triku.tl.triku(tmp)
+        hvg_col = next(
+            (c for c in ("triku_highly_variable", "highly_variable") if c in tmp.var),
+            None,
+        )
+        selected = list(tmp.var_names[tmp.var[hvg_col]]) if hvg_col else []
+        if not selected:
+            warnings.warn("triku selected 0 genes; falling back to seurat_v3", stacklevel=2)
+            return select_features(adata, "seurat_v3", n_features, batch_key, seed)
+        return selected[:n_features]
+
+    # ------------------------------------------------------------------
+    # hotspot: spatial autocorrelation in KNN graph (Detlefsen et al. 2022)
+    if method == "hotspot":
+        try:
+            import hotspot as _hs
+        except ImportError as exc:
+            raise ImportError("hotspot required: pip install hotspot") from exc
+        tmp = _lognorm_copy(adata)
+        _ensure_counts_layer(tmp)
+        n_comps = min(30, tmp.n_vars - 1, tmp.n_obs - 1)
+        sc.pp.pca(tmp, n_comps=n_comps)
+        try:
+            hs = _hs.Hotspot(tmp, model="danb", latent_obsm_key="X_pca", n_neighbors=30)
+            hs.create_knn_graph()
+            hs.compute_autocorrelations(jobs=1)
+        except TypeError:
+            # Older API: n_neighbors passed to constructor
+            hs = _hs.Hotspot(tmp, model="danb", latent_obsm_key="X_pca")
+            hs.create_knn_graph(n_neighbors=30)
+            hs.compute_autocorrelations(jobs=1)
+        results = hs.results
+        fdr_col = next((c for c in ("FDR", "fdr") if c in results.columns), None)
+        if fdr_col:
+            sig = results.loc[results[fdr_col] < 0.05]
+            if sig.empty:
+                sig = results
+        else:
+            sig = results
+        z_col = next((c for c in ("Z", "z", "z_score") if c in sig.columns), None)
+        if z_col:
+            sig = sig.sort_values(z_col, ascending=False)
+        return list(sig.head(n_features).index)
+
+    # ------------------------------------------------------------------
+    # anticor: anti-correlation-based redundancy filtering (Zeisel et al.)
+    if method == "anticor":
+        try:
+            from anticor_features.anticor_features import get_anticor_genes
+        except ImportError as exc:
+            raise ImportError(
+                "anticor_features required: pip install anticor-features"
+            ) from exc
+        tmp = _lognorm_copy(adata)
+        X = tmp.X.toarray() if sp.issparse(tmp.X) else np.asarray(tmp.X)
+        try:
+            genes = get_anticor_genes(
+                X, list(tmp.var_names), n_features, pre_remove_pathways=[]
+            )
+        except Exception:
+            genes = get_anticor_genes(X, list(tmp.var_names), n_features)
+        return list(genes)[:n_features]
 
     raise ValueError(f"Unhandled method: {method!r}")

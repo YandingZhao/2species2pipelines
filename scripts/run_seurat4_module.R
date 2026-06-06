@@ -38,6 +38,22 @@ species_a     <- get_arg("species_a")
 species_b     <- get_arg("species_b")
 normalization <- get_arg("normalization", required = FALSE)
 if (is.null(normalization)) normalization <- "norm_data"
+features_file <- get_arg("features_file", required = FALSE)
+
+# Helper: return integration feature list from file or SelectIntegrationFeatures.
+get_integration_features <- function(obj_list, features_file, n = 2000) {
+  if (!is.null(features_file)) {
+    genes   <- readLines(features_file)
+    common  <- Reduce(intersect, lapply(obj_list, rownames))
+    genes   <- intersect(genes, common)
+    if (length(genes) < 10)
+      stop("features_file has fewer than 10 valid genes after intersection", call. = FALSE)
+    genes
+  } else {
+    nf <- min(n, min(sapply(obj_list, nrow)))
+    SelectIntegrationFeatures(object.list = obj_list, nfeatures = nf)
+  }
+}
 
 obj_a <- readRDS(input_a)
 obj_b <- readRDS(input_b)
@@ -60,7 +76,7 @@ obj_list <- list(obj_a, obj_b)
 
 if (normalization == "sctransform") {
   obj_list <- lapply(obj_list, function(x) SCTransform(x, verbose = FALSE))
-  features <- SelectIntegrationFeatures(object.list = obj_list, nfeatures = 3000)
+  features <- get_integration_features(obj_list, features_file, n = 3000)
   obj_list <- PrepSCTIntegration(object.list = obj_list, anchor.features = features)
   anchors  <- FindIntegrationAnchors(object.list = obj_list,
                                      normalization.method = "SCT",
@@ -70,24 +86,24 @@ if (normalization == "sctransform") {
   combined <- ScaleData(combined, verbose = FALSE)
   combined <- RunPCA(combined, npcs = 30, verbose = FALSE)
 } else if (normalization == "scran") {
-  obj_list <- lapply(obj_list, function(x) {
-    x <- scran_lognorm(x)
-    nfeature <- min(2000, nrow(x))
-    FindVariableFeatures(x, selection.method = "vst", nfeatures = nfeature)
-  })
-  features <- SelectIntegrationFeatures(object.list = obj_list)
+  obj_list <- lapply(obj_list, function(x) scran_lognorm(x))
+  features <- get_integration_features(obj_list, features_file)
+  anchors  <- FindIntegrationAnchors(object.list = obj_list, anchor.features = features)
+  combined <- IntegrateData(anchorset = anchors)
+  DefaultAssay(combined) <- "integrated"
+  combined <- ScaleData(combined, verbose = FALSE)
+  combined <- RunPCA(combined, npcs = 30, verbose = FALSE)
+} else if (normalization == "pre_normalized") {
+  # Input normalized externally; skip normalization, go straight to integration.
+  features <- get_integration_features(obj_list, features_file)
   anchors  <- FindIntegrationAnchors(object.list = obj_list, anchor.features = features)
   combined <- IntegrateData(anchorset = anchors)
   DefaultAssay(combined) <- "integrated"
   combined <- ScaleData(combined, verbose = FALSE)
   combined <- RunPCA(combined, npcs = 30, verbose = FALSE)
 } else {
-  obj_list <- lapply(obj_list, function(x) {
-    x <- NormalizeData(x)
-    nfeature <- min(2000, nrow(x))
-    FindVariableFeatures(x, selection.method = "vst", nfeatures = nfeature)
-  })
-  features <- SelectIntegrationFeatures(object.list = obj_list)
+  obj_list <- lapply(obj_list, NormalizeData)
+  features <- get_integration_features(obj_list, features_file)
   anchors  <- FindIntegrationAnchors(object.list = obj_list, anchor.features = features)
   combined <- IntegrateData(anchorset = anchors)
   DefaultAssay(combined) <- "integrated"
@@ -111,6 +127,9 @@ writeLines(
     paste("sample:", sample_id),
     paste("species_a:", species_a),
     paste("species_b:", species_b),
+    paste("normalization:", normalization),
+    paste("features_file:", if (!is.null(features_file)) features_file else "none"),
+    paste("n_integration_features:", length(features)),
     paste("cells:", ncol(combined)),
     paste("genes:", nrow(combined)),
     "status: ok"

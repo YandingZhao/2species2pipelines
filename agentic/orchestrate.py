@@ -38,6 +38,21 @@ R_METHODS = {"harmony", "seurat4", "fastmnn"}
 PYTHON_METHODS = {"bbknn", "scanorama", "scvi", "scgen", "samap", "saturn"}
 ALL_METHODS = R_METHODS | PYTHON_METHODS
 
+# Feature selection methods available in run_feature_selection.py (Python)
+PYTHON_FS_METHODS = (
+    "seurat_v3", "seurat_v3_batch", "seurat", "seurat_batch",
+    "cell_ranger", "cell_ranger_batch", "pearson", "pearson_batch",
+    "mean", "variance", "wilcoxon", "triku", "hotspot", "anticor",
+    "random", "all",
+)
+# Feature selection methods available in run_feature_selection_r.R (R only)
+R_FS_METHODS = (
+    "seurat_vst", "seurat_mvp", "seurat_disp", "seurat_sct",
+    "osca", "brennecke", "nbumi", "dubstepr", "scry",
+    "scpnmf", "singlecellhaystack", "scsegindex",
+)
+ALL_FS_METHODS = PYTHON_FS_METHODS + R_FS_METHODS
+
 # Embedding key each method stores in obsm (used for UMAP + neighbour graph)
 EMBEDDING_KEYS = {
     "harmony": "X_harmony",
@@ -114,24 +129,69 @@ def seurat_to_anndata_single(input_rds, workdir):
     return Path(workdir) / f"{Path(input_rds).stem}.h5ad"
 
 
-def run_r_integration(method, input_a, input_b, sample_id, species_a, species_b, workdir):
+def run_feature_selection_py(input_a, input_b, sample_id, species_a, species_b,
+                              fs_method, n_features, workdir):
+    """Run Python feature selection. Returns path to features.txt."""
+    _run(
+        [PYTHON, str(SCRIPTS_DIR / "run_feature_selection.py"),
+         "--input_a", str(input_a), "--input_b", str(input_b),
+         "--sample_id", sample_id,
+         "--species_a", species_a, "--species_b", species_b,
+         "--method", fs_method, "--n_features", str(n_features)],
+        cwd=str(workdir), label=f"feature_selection_{fs_method}",
+    )
+    return Path(workdir) / f"{sample_id}_{fs_method}_{n_features}_features.txt"
+
+
+def run_feature_selection_r(input_a, input_b, sample_id, species_a, species_b,
+                             fs_method, n_features, workdir):
+    """Run R feature selection. Returns path to features.txt."""
+    _run(
+        [RSCRIPT, str(SCRIPTS_DIR / "run_feature_selection_r.R"),
+         "--input_a", str(input_a), "--input_b", str(input_b),
+         "--sample_id", sample_id,
+         "--species_a", species_a, "--species_b", species_b,
+         "--method", fs_method, "--n_features", str(n_features)],
+        cwd=str(workdir), label=f"r_feature_selection_{fs_method}",
+    )
+    return Path(workdir) / f"{sample_id}_{fs_method}_{n_features}_features.txt"
+
+
+def run_r_normalize(input_a, input_b, sample_id, norm_method, workdir):
+    """Run standalone R normalization. Returns (rds_a_norm, rds_b_norm) paths."""
+    out_a = Path(workdir) / f"{sample_id}_a_{norm_method}_norm.rds"
+    out_b = Path(workdir) / f"{sample_id}_b_{norm_method}_norm.rds"
+    _run(
+        [RSCRIPT, str(SCRIPTS_DIR / "run_normalize_r.R"),
+         "--input_a", str(input_a), "--input_b", str(input_b),
+         "--method", norm_method,
+         "--output_a", str(out_a), "--output_b", str(out_b)],
+        cwd=str(workdir), label=f"normalize_r_{norm_method}",
+    )
+    return out_a, out_b
+
+
+def run_r_integration(method, input_a, input_b, sample_id, species_a, species_b,
+                      workdir, normalization="log_norm", features_file=None):
     """Run a Harmony / Seurat4 / fastMNN integration. Returns integrated RDS path."""
     script_map = {
         "harmony": "run_harmony_module.R",
         "seurat4": "run_seurat4_module.R",
         "fastmnn": "run_fastmnn_module.R",
     }
-    _run(
-        [RSCRIPT, str(SCRIPTS_DIR / script_map[method]),
-         "--input_a", str(input_a), "--input_b", str(input_b),
-         "--sample_id", sample_id,
-         "--species_a", species_a, "--species_b", species_b],
-        cwd=str(workdir), label=f"{method}_integration",
-    )
+    cmd = [RSCRIPT, str(SCRIPTS_DIR / script_map[method]),
+           "--input_a", str(input_a), "--input_b", str(input_b),
+           "--sample_id", sample_id,
+           "--species_a", species_a, "--species_b", species_b,
+           "--normalization", normalization]
+    if features_file:
+        cmd += ["--features_file", str(features_file)]
+    _run(cmd, cwd=str(workdir), label=f"{method}_integration")
     return Path(workdir) / f"{sample_id}_{method}_integration.rds"
 
 
-def run_python_integration(method, input_a, input_b, sample_id, species_a, species_b, workdir, normalization="log_norm"):
+def run_python_integration(method, input_a, input_b, sample_id, species_a, species_b,
+                           workdir, normalization="log_norm", features_file=None):
     """Run a BBKNN / Scanorama / scVI / scGen integration. Returns integrated h5ad path."""
     script_map = {
         "bbknn": "run_bbknn_module.py",
@@ -141,14 +201,14 @@ def run_python_integration(method, input_a, input_b, sample_id, species_a, speci
         "samap": "run_samap_module.py",
         "saturn": "run_saturn_module.py",
     }
-    _run(
-        [PYTHON, str(SCRIPTS_DIR / script_map[method]),
-         "--input_a", str(input_a), "--input_b", str(input_b),
-         "--sample_id", sample_id,
-         "--species_a", species_a, "--species_b", species_b,
-         "--normalization", normalization],
-        cwd=str(workdir), label=f"{method}_integration",
-    )
+    cmd = [PYTHON, str(SCRIPTS_DIR / script_map[method]),
+           "--input_a", str(input_a), "--input_b", str(input_b),
+           "--sample_id", sample_id,
+           "--species_a", species_a, "--species_b", species_b,
+           "--normalization", normalization]
+    if features_file:
+        cmd += ["--features_file", str(features_file)]
+    _run(cmd, cwd=str(workdir), label=f"{method}_integration")
     return Path(workdir) / f"{sample_id}_{method}_integration.h5ad"
 
 
@@ -264,12 +324,17 @@ def run(
     skip_ortholog=False,
     skip_umap=False,
     normalizations=None,
+    feature_selections=None,
+    n_features=2000,
 ):
     """Programmatic entry point (also called by CLI). Returns the summary dict."""
     if methods is None:
         methods = sorted(ALL_METHODS)
     if normalizations is None:
         normalizations = ["log_norm"]
+    # feature_selections=None means no standalone FS step (use internal HVG in each script)
+    if feature_selections is None:
+        feature_selections = [None]
 
     input_a = Path(input_a).resolve()
     input_b = Path(input_b).resolve()
@@ -311,48 +376,107 @@ def run(
 
         # ── Step 2b: Run integrations ────────────────────────────────────────
         integrated_h5ads = []
+        multi_dim = len(normalizations) > 1 or any(f is not None for f in feature_selections)
 
-        for method in r_methods:
-            print(f"\n[2/4] Running {method} (R)")
-            try:
-                rds_out = run_r_integration(
-                    method, rds_a, rds_b, sample_id, species_a, species_b, tmpdir
-                )
-                h5ad_out = seurat_to_anndata_single(rds_out, tmpdir)
-                final = outdir / h5ad_out.name
-                shutil.copy(h5ad_out, final)
-                integrated_h5ads.append(final)
-                report = _parse_report_txt(tmpdir / f"{sample_id}_{method}_report.txt")
-                summary["methods"][method] = _method_result(
-                    "ok", h5ad=str(final), run_report=report
-                )
-            except RuntimeError as exc:
-                print(f"  ERROR: {exc}")
-                summary["methods"][method] = _method_result("failed", error=str(exc)[:800])
+        for fs in feature_selections:
+            # ── R methods ───────────────────────────────────────────────────
+            for method in r_methods:
+                r_features_file = None
+                if fs is not None:
+                    fs_label = f"{fs}_{n_features}"
+                    fs_sample_id = f"{sample_id}_{fs_label}" if multi_dim else sample_id
+                    try:
+                        if fs in R_FS_METHODS:
+                            r_features_file = run_feature_selection_r(
+                                rds_a, rds_b, fs_sample_id,
+                                species_a, species_b, fs, n_features, tmpdir,
+                            )
+                        else:
+                            # Python FS methods work on h5ad; use h5ad_a/b if available
+                            if h5ad_a is not None:
+                                r_features_file = run_feature_selection_py(
+                                    h5ad_a, h5ad_b, fs_sample_id,
+                                    species_a, species_b, fs, n_features, tmpdir,
+                                )
+                    except RuntimeError as exc:
+                        print(f"  WARNING: feature selection {fs} failed for {method}: {exc}")
 
-        for norm in normalizations:
-            # For multi-normalization sweeps, encode the normalization in the run id
-            norm_sample_id = f"{sample_id}_{norm}" if len(normalizations) > 1 else sample_id
-            for method in py_methods:
-                run_label = f"{norm}/{method}" if len(normalizations) > 1 else method
-                print(f"\n[2/4] Running {run_label} (Python)")
+                run_id = (f"{sample_id}_{fs}_{n_features}" if fs else sample_id)
+                label = f"{fs}/{method}" if fs else method
+                print(f"\n[2/4] Running {label} (R)")
                 try:
-                    h5ad_out = run_python_integration(
-                        method, h5ad_a, h5ad_b, norm_sample_id, species_a, species_b, tmpdir,
-                        normalization=norm,
+                    rds_out = run_r_integration(
+                        method, rds_a, rds_b, run_id,
+                        species_a, species_b, tmpdir,
+                        features_file=r_features_file,
                     )
+                    h5ad_out = seurat_to_anndata_single(rds_out, tmpdir)
                     final = outdir / h5ad_out.name
                     shutil.copy(h5ad_out, final)
                     integrated_h5ads.append(final)
-                    report = _parse_report_txt(tmpdir / f"{norm_sample_id}_{method}_report.txt")
-                    key = f"{norm}/{method}" if len(normalizations) > 1 else method
-                    summary["methods"][key] = _method_result(
+                    report = _parse_report_txt(tmpdir / f"{run_id}_{method}_report.txt")
+                    summary["methods"][label] = _method_result(
                         "ok", h5ad=str(final), run_report=report
                     )
                 except RuntimeError as exc:
                     print(f"  ERROR: {exc}")
-                    key = f"{norm}/{method}" if len(normalizations) > 1 else method
-                    summary["methods"][key] = _method_result("failed", error=str(exc)[:800])
+                    summary["methods"][label] = _method_result("failed", error=str(exc)[:800])
+
+            # ── Python methods ───────────────────────────────────────────────
+            for norm in normalizations:
+                py_features_file = None
+                if fs is not None and h5ad_a is not None and fs in PYTHON_FS_METHODS:
+                    fs_label = f"{fs}_{n_features}"
+                    fs_sample_id = (
+                        f"{sample_id}_{norm}_{fs_label}" if multi_dim else sample_id
+                    )
+                    try:
+                        py_features_file = run_feature_selection_py(
+                            h5ad_a, h5ad_b, fs_sample_id,
+                            species_a, species_b, fs, n_features, tmpdir,
+                        )
+                    except RuntimeError as exc:
+                        print(f"  WARNING: Python feature selection {fs} failed: {exc}")
+
+                # Build run-level sample_id and summary key
+                parts = [sample_id]
+                if len(normalizations) > 1:
+                    parts.append(norm)
+                if fs is not None:
+                    parts.append(f"{fs}_{n_features}")
+                norm_sample_id = "_".join(parts) if len(parts) > 1 else sample_id
+
+                for method in py_methods:
+                    label_parts = []
+                    if len(normalizations) > 1:
+                        label_parts.append(norm)
+                    if fs is not None:
+                        label_parts.append(fs)
+                    label_parts.append(method)
+                    run_label = "/".join(label_parts) if len(label_parts) > 1 else method
+
+                    print(f"\n[2/4] Running {run_label} (Python)")
+                    try:
+                        h5ad_out = run_python_integration(
+                            method, h5ad_a, h5ad_b, norm_sample_id,
+                            species_a, species_b, tmpdir,
+                            normalization=norm,
+                            features_file=py_features_file,
+                        )
+                        final = outdir / h5ad_out.name
+                        shutil.copy(h5ad_out, final)
+                        integrated_h5ads.append(final)
+                        report = _parse_report_txt(
+                            tmpdir / f"{norm_sample_id}_{method}_report.txt"
+                        )
+                        summary["methods"][run_label] = _method_result(
+                            "ok", h5ad=str(final), run_report=report
+                        )
+                    except RuntimeError as exc:
+                        print(f"  ERROR: {exc}")
+                        summary["methods"][run_label] = _method_result(
+                            "failed", error=str(exc)[:800]
+                        )
 
         # ── Step 3: Evaluate ─────────────────────────────────────────────────
         print(f"\n[3/4] scIB evaluation  ({len(integrated_h5ads)} outputs)")
@@ -435,9 +559,20 @@ def main():
     parser.add_argument(
         "--normalizations", nargs="+",
         default=["log_norm"],
-        choices=["log_norm", "pearson_residuals", "raw_counts"],
-        help="Normalization methods to sweep (Python methods only). "
-             "Multiple values produce one run per normalization.",
+        choices=["log_norm", "pearson_residuals", "scran", "sctransform", "raw_counts"],
+        help="Normalization methods to sweep. Multiple values produce one run each.",
+    )
+    parser.add_argument(
+        "--feature_selections", nargs="+",
+        default=None,
+        choices=list(ALL_FS_METHODS),
+        help="Feature selection methods to sweep via standalone scripts. "
+             "When omitted each integration script uses its own internal HVG selection. "
+             "Multiple values produce one run per method.",
+    )
+    parser.add_argument(
+        "--n_features", type=int, default=2000,
+        help="Number of features to select (default: 2000).",
     )
     args = parser.parse_args()
 
@@ -452,6 +587,8 @@ def main():
         skip_ortholog=args.skip_ortholog,
         skip_umap=args.skip_umap,
         normalizations=args.normalizations,
+        feature_selections=args.feature_selections,
+        n_features=args.n_features,
     )
 
 
