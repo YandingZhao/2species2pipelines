@@ -1,0 +1,178 @@
+name: Generate Normalized Data
+
+on:
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  R_IMAGE: ghcr.io/break-through-cancer/2species2pipelines/r-methods:latest
+  PYTHON_IMAGE: ghcr.io/break-through-cancer/2species2pipelines/python-methods:latest
+  DATA_DIR: tests/data/data
+  NORM_DIR: tests/data/normalized
+
+jobs:
+  generate-normalized-data:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      # ── Create output directories ────────────────────────────────────────────
+      - name: Create output directories
+        run: |
+          for method in log_norm pearson_residuals raw_counts scran; do
+            mkdir -p ${{ env.NORM_DIR }}/python/$method
+          done
+          for method in log_norm scran sctransform raw_counts; do
+            mkdir -p ${{ env.NORM_DIR }}/r/$method
+          done
+          mkdir -p ${{ env.NORM_DIR }}/tmp
+
+      # ── Convert raw RDS → raw h5ad (for Python normalization pipeline) ───────
+      - name: Convert raw RDS to h5ad
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w /work/${{ env.NORM_DIR }}/tmp \
+            ${{ env.R_IMAGE }} \
+            Rscript /work/scripts/run_seurat_to_anndata.R \
+              --input_a /work/${{ env.DATA_DIR }}/Dog_pt15_Immune_Lymphoid_diet.rds \
+              --input_b /work/${{ env.DATA_DIR }}/Human_X00004_Immune_Lymphoid_diet.rds
+
+      # ── Python normalizations ────────────────────────────────────────────────
+      - name: Python — log_norm
+        run: |
+          for species_file in Dog_pt15_Immune_Lymphoid_diet Human_X00004_Immune_Lymphoid_diet; do
+            docker run --rm \
+              -v ${{ github.workspace }}:/work \
+              ${{ env.PYTHON_IMAGE }} \
+              python3 /work/scripts/run_normalize_python.py \
+                --input  /work/${{ env.NORM_DIR }}/tmp/${species_file}.h5ad \
+                --output /work/${{ env.NORM_DIR }}/python/log_norm/${species_file}.h5ad \
+                --method log_norm
+          done
+
+      - name: Python — pearson_residuals
+        run: |
+          for species_file in Dog_pt15_Immune_Lymphoid_diet Human_X00004_Immune_Lymphoid_diet; do
+            docker run --rm \
+              -v ${{ github.workspace }}:/work \
+              ${{ env.PYTHON_IMAGE }} \
+              python3 /work/scripts/run_normalize_python.py \
+                --input  /work/${{ env.NORM_DIR }}/tmp/${species_file}.h5ad \
+                --output /work/${{ env.NORM_DIR }}/python/pearson_residuals/${species_file}.h5ad \
+                --method pearson_residuals
+          done
+
+      - name: Python — raw_counts
+        run: |
+          for species_file in Dog_pt15_Immune_Lymphoid_diet Human_X00004_Immune_Lymphoid_diet; do
+            docker run --rm \
+              -v ${{ github.workspace }}:/work \
+              ${{ env.PYTHON_IMAGE }} \
+              python3 /work/scripts/run_normalize_python.py \
+                --input  /work/${{ env.NORM_DIR }}/tmp/${species_file}.h5ad \
+                --output /work/${{ env.NORM_DIR }}/python/raw_counts/${species_file}.h5ad \
+                --method raw_counts
+          done
+
+      # ── Python — scran: normalize with R, then convert normalized RDS → h5ad ─
+      - name: R — scran (for Python pipeline)
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            ${{ env.R_IMAGE }} \
+            Rscript /work/scripts/run_normalize_r.R \
+              --input_a  /work/${{ env.DATA_DIR }}/Dog_pt15_Immune_Lymphoid_diet.rds \
+              --input_b  /work/${{ env.DATA_DIR }}/Human_X00004_Immune_Lymphoid_diet.rds \
+              --method   scran \
+              --output_a /work/${{ env.NORM_DIR }}/tmp/Dog_pt15_Immune_Lymphoid_diet_scran.rds \
+              --output_b /work/${{ env.NORM_DIR }}/tmp/Human_X00004_Immune_Lymphoid_diet_scran.rds
+
+      - name: Convert scran-normalized RDS → h5ad (Python/scran pipeline)
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w /work/${{ env.NORM_DIR }}/python/scran \
+            ${{ env.R_IMAGE }} \
+            Rscript /work/scripts/run_seurat_to_anndata.R \
+              --input_a /work/${{ env.NORM_DIR }}/tmp/Dog_pt15_Immune_Lymphoid_diet_scran.rds \
+              --input_b /work/${{ env.NORM_DIR }}/tmp/Human_X00004_Immune_Lymphoid_diet_scran.rds
+
+      # ── R normalizations (pure RDS → RDS) ───────────────────────────────────
+      - name: R — log_norm
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            ${{ env.R_IMAGE }} \
+            Rscript /work/scripts/run_normalize_r.R \
+              --input_a  /work/${{ env.DATA_DIR }}/Dog_pt15_Immune_Lymphoid_diet.rds \
+              --input_b  /work/${{ env.DATA_DIR }}/Human_X00004_Immune_Lymphoid_diet.rds \
+              --method   log_norm \
+              --output_a /work/${{ env.NORM_DIR }}/r/log_norm/Dog_pt15_Immune_Lymphoid_diet.rds \
+              --output_b /work/${{ env.NORM_DIR }}/r/log_norm/Human_X00004_Immune_Lymphoid_diet.rds
+
+      - name: R — scran
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            ${{ env.R_IMAGE }} \
+            Rscript /work/scripts/run_normalize_r.R \
+              --input_a  /work/${{ env.DATA_DIR }}/Dog_pt15_Immune_Lymphoid_diet.rds \
+              --input_b  /work/${{ env.DATA_DIR }}/Human_X00004_Immune_Lymphoid_diet.rds \
+              --method   scran \
+              --output_a /work/${{ env.NORM_DIR }}/r/scran/Dog_pt15_Immune_Lymphoid_diet.rds \
+              --output_b /work/${{ env.NORM_DIR }}/r/scran/Human_X00004_Immune_Lymphoid_diet.rds
+
+      - name: R — sctransform
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            ${{ env.R_IMAGE }} \
+            Rscript /work/scripts/run_normalize_r.R \
+              --input_a  /work/${{ env.DATA_DIR }}/Dog_pt15_Immune_Lymphoid_diet.rds \
+              --input_b  /work/${{ env.DATA_DIR }}/Human_X00004_Immune_Lymphoid_diet.rds \
+              --method   sctransform \
+              --output_a /work/${{ env.NORM_DIR }}/r/sctransform/Dog_pt15_Immune_Lymphoid_diet.rds \
+              --output_b /work/${{ env.NORM_DIR }}/r/sctransform/Human_X00004_Immune_Lymphoid_diet.rds
+
+      - name: R — raw_counts
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            ${{ env.R_IMAGE }} \
+            Rscript /work/scripts/run_normalize_r.R \
+              --input_a  /work/${{ env.DATA_DIR }}/Dog_pt15_Immune_Lymphoid_diet.rds \
+              --input_b  /work/${{ env.DATA_DIR }}/Human_X00004_Immune_Lymphoid_diet.rds \
+              --method   raw_counts \
+              --output_a /work/${{ env.NORM_DIR }}/r/raw_counts/Dog_pt15_Immune_Lymphoid_diet.rds \
+              --output_b /work/${{ env.NORM_DIR }}/r/raw_counts/Human_X00004_Immune_Lymphoid_diet.rds
+
+      # ── Clean up temp files ──────────────────────────────────────────────────
+      - name: Clean up tmp
+        run: rm -rf ${{ env.NORM_DIR }}/tmp
+
+      # ── Commit normalized outputs back to the branch ─────────────────────────
+      - name: Commit normalized data
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ${{ env.NORM_DIR }}/
+          if git diff --cached --quiet; then
+            echo "No changes to commit — all normalized files already up to date."
+          else
+            git commit -m "chore: generate pre-normalized data fixtures [skip ci]"
+            git push origin HEAD:${{ github.ref_name }}
+          fi
