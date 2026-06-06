@@ -4,20 +4,23 @@ suppressPackageStartupMessages({
 
 args <- commandArgs(trailingOnly = TRUE)
 
-get_arg <- function(name) {
+get_arg <- function(name, required = TRUE) {
   key <- paste0("--", name)
   idx <- which(args == key)
   if (length(idx) == 0 || idx == length(args)) {
-    stop(paste("Missing required argument:", key), call. = FALSE)
+    if (required) stop(paste("Missing required argument:", key), call. = FALSE)
+    return(NULL)
   }
   args[idx + 1]
 }
 
-input_a <- get_arg("input_a")
-input_b <- get_arg("input_b")
-sample_id <- get_arg("sample_id")
-species_a <- get_arg("species_a")
-species_b <- get_arg("species_b")
+input_a       <- get_arg("input_a")
+input_b       <- get_arg("input_b")
+sample_id     <- get_arg("sample_id")
+species_a     <- get_arg("species_a")
+species_b     <- get_arg("species_b")
+normalization <- get_arg("normalization", required = FALSE)
+if (is.null(normalization)) normalization <- "norm_data"
 
 obj_a <- readRDS(input_a)
 obj_b <- readRDS(input_b)
@@ -38,19 +41,30 @@ if (!("celltype" %in% colnames(obj_b@meta.data))) {
 
 obj_list <- list(obj_a, obj_b)
 
-obj_list <- lapply(obj_list, function(x) {
-  x <- NormalizeData(x)
-  nfeature <- min(2000, nrow(x))
-  FindVariableFeatures(x, selection.method = "vst", nfeatures = nfeature)
-})
-
-features <- SelectIntegrationFeatures(object.list = obj_list)
-anchors <- FindIntegrationAnchors(object.list = obj_list, anchor.features = features)
-combined <- IntegrateData(anchorset = anchors)
-
-DefaultAssay(combined) <- "integrated"
-combined <- ScaleData(combined, verbose = FALSE)
-combined <- RunPCA(combined, npcs = 30, verbose = FALSE)
+if (normalization == "sctransform") {
+  obj_list <- lapply(obj_list, function(x) SCTransform(x, verbose = FALSE))
+  features <- SelectIntegrationFeatures(object.list = obj_list, nfeatures = 3000)
+  obj_list <- PrepSCTIntegration(object.list = obj_list, anchor.features = features)
+  anchors  <- FindIntegrationAnchors(object.list = obj_list,
+                                     normalization.method = "SCT",
+                                     anchor.features = features)
+  combined <- IntegrateData(anchorset = anchors, normalization.method = "SCT")
+  DefaultAssay(combined) <- "integrated"
+  combined <- ScaleData(combined, verbose = FALSE)
+  combined <- RunPCA(combined, npcs = 30, verbose = FALSE)
+} else {
+  obj_list <- lapply(obj_list, function(x) {
+    x <- NormalizeData(x)
+    nfeature <- min(2000, nrow(x))
+    FindVariableFeatures(x, selection.method = "vst", nfeatures = nfeature)
+  })
+  features <- SelectIntegrationFeatures(object.list = obj_list)
+  anchors  <- FindIntegrationAnchors(object.list = obj_list, anchor.features = features)
+  combined <- IntegrateData(anchorset = anchors)
+  DefaultAssay(combined) <- "integrated"
+  combined <- ScaleData(combined, verbose = FALSE)
+  combined <- RunPCA(combined, npcs = 30, verbose = FALSE)
+}
 
 seurat_res <- as.data.frame(Embeddings(combined, reduction = "pca"))
 seurat_res$cell <- rownames(seurat_res)

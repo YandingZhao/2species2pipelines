@@ -365,6 +365,63 @@ jobs:
               --species_a dog --species_b human \
               --normalization scran
 
+      # ── Normalization sweep: sctransform ──────────────────────────────────
+      # SCTransform (Hafemeister & Satija 2019) applies regularized NB GLM,
+      # fitting gene-wise dispersion parameters with cross-gene regularization.
+      # Step 1: apply SCTransform in R → pre-normalized h5ad pair (HVGs only)
+      # Step 2: run Python integrations on that pair with --normalization sctransform
+      # Step 3: run R integrations (harmony, seurat4, fastmnn) with SCT workflow
+
+      - name: Normalization sweep — sctransform preprocessing  [R]
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w ${{ env.CONT_OUTDIR }} \
+            ${{ env.R_IMAGE }} \
+            Rscript /work/scripts/run_normalize_sctransform.R \
+              --input_a  ${{ env.CONT_OUTDIR }}/task4_demo_a_ortholog.rds \
+              --output_a ${{ env.CONT_OUTDIR }}/task4_demo_a_sct.h5ad \
+              --input_b  ${{ env.CONT_OUTDIR }}/task4_demo_b_ortholog.rds \
+              --output_b ${{ env.CONT_OUTDIR }}/task4_demo_b_sct.h5ad
+
+      - name: Normalization sweep — sctransform integrations  [Python]
+        run: |
+          for METHOD in bbknn scanorama scgen; do
+            echo "=== sctransform / $METHOD ==="
+            docker run --rm \
+              -v ${{ github.workspace }}:/work \
+              -w ${{ env.CONT_OUTDIR }} \
+              ${{ env.PYTHON_IMAGE }} \
+              python3 /work/scripts/run_${METHOD}_module.py \
+                --input_a ${{ env.CONT_OUTDIR }}/task4_demo_a_sct.h5ad \
+                --input_b ${{ env.CONT_OUTDIR }}/task4_demo_b_sct.h5ad \
+                --sample_id task4_demo_sct \
+                --species_a dog --species_b human \
+                --normalization sctransform
+          done
+
+      - name: Normalization sweep — sctransform R methods  [R]
+        run: |
+          for METHOD in harmony seurat4 fastmnn; do
+            echo "=== sctransform / $METHOD ==="
+            docker run --rm \
+              -v ${{ github.workspace }}:/work \
+              -w ${{ env.CONT_OUTDIR }} \
+              ${{ env.R_IMAGE }} \
+              Rscript /work/scripts/run_${METHOD}_module.R \
+                --input_a ${{ env.CONT_OUTDIR }}/task4_demo_a_ortholog.rds \
+                --input_b ${{ env.CONT_OUTDIR }}/task4_demo_b_ortholog.rds \
+                --sample_id task4_demo_sct \
+                --species_a dog --species_b human \
+                --normalization sctransform
+            docker run --rm \
+              -v ${{ github.workspace }}:/work \
+              -w ${{ env.CONT_OUTDIR }} \
+              ${{ env.R_IMAGE }} \
+              Rscript /work/scripts/run_seurat_to_anndata.R \
+                --input_a ${{ env.CONT_OUTDIR }}/task4_demo_sct_${METHOD}_integration.rds
+          done
+
       # ── SAMap (sequence-based) ─────────────────────────────────────────────
 
       - name: SAMap  [SAMap image]

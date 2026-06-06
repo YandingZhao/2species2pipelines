@@ -5,20 +5,23 @@ suppressPackageStartupMessages({
 
 args <- commandArgs(trailingOnly = TRUE)
 
-get_arg <- function(name) {
+get_arg <- function(name, required = TRUE) {
   key <- paste0("--", name)
   idx <- which(args == key)
   if (length(idx) == 0 || idx == length(args)) {
-    stop(paste("Missing required argument:", key), call. = FALSE)
+    if (required) stop(paste("Missing required argument:", key), call. = FALSE)
+    return(NULL)
   }
   args[idx + 1]
 }
 
-input_a <- get_arg("input_a")
-input_b <- get_arg("input_b")
-sample_id <- get_arg("sample_id")
-species_a <- get_arg("species_a")
-species_b <- get_arg("species_b")
+input_a       <- get_arg("input_a")
+input_b       <- get_arg("input_b")
+sample_id     <- get_arg("sample_id")
+species_a     <- get_arg("species_a")
+species_b     <- get_arg("species_b")
+normalization <- get_arg("normalization", required = FALSE)
+if (is.null(normalization)) normalization <- "norm_data"
 
 obj_a <- readRDS(input_a)
 obj_b <- readRDS(input_b)
@@ -37,12 +40,18 @@ if (!("celltype" %in% colnames(merged@meta.data))) {
   merged$celltype <- "unknown"
 }
 
-merged <- NormalizeData(merged)
-nfeatures <- min(2000, nrow(merged))
-merged <- FindVariableFeatures(merged, selection.method = "vst", nfeatures = nfeatures)
-merged <- ScaleData(merged)
-merged <- RunPCA(merged, npcs = 30, verbose = FALSE)
-merged <- RunHarmony(merged, group.by.vars = "batch", theta = 2)
+if (normalization == "sctransform") {
+  merged <- SCTransform(merged, verbose = FALSE)
+  merged <- RunPCA(merged, assay = "SCT", npcs = 30, verbose = FALSE)
+  merged <- RunHarmony(merged, group.by.vars = "batch", assay.use = "SCT")
+} else {
+  merged <- NormalizeData(merged)
+  nfeatures <- min(2000, nrow(merged))
+  merged <- FindVariableFeatures(merged, selection.method = "vst", nfeatures = nfeatures)
+  merged <- ScaleData(merged)
+  merged <- RunPCA(merged, npcs = 30, verbose = FALSE)
+  merged <- RunHarmony(merged, group.by.vars = "batch", theta = 2)
+}
 
 harmony_res <- as.data.frame(Embeddings(merged, reduction = "harmony"))
 harmony_res$cell <- rownames(harmony_res)

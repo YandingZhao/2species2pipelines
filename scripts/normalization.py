@@ -14,7 +14,7 @@ raw_counts        : no normalization — X is kept as raw integer counts.
 """
 import scanpy as sc
 
-NORM_METHODS = ("log_norm", "pearson_residuals", "scran", "raw_counts")
+NORM_METHODS = ("log_norm", "pearson_residuals", "scran", "sctransform", "raw_counts")
 
 
 def apply_normalization(adata, method: str) -> None:
@@ -33,6 +33,8 @@ def apply_normalization(adata, method: str) -> None:
         sc.experimental.pp.normalize_pearson_residuals(adata)
     elif method == "scran":
         pass  # pre-normalized by run_normalize_scran.R; X already contains log-scran
+    elif method == "sctransform":
+        pass  # pre-normalized by run_normalize_sctransform.R; X already contains SCT residuals
     elif method == "raw_counts":
         pass  # keep X as integer counts
     else:
