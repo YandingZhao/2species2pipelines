@@ -5,8 +5,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  R_IMAGE: ghcr.io/break-through-cancer/2species2pipelines/r-methods:latest
-  PYTHON_IMAGE: ghcr.io/break-through-cancer/2species2pipelines/python-methods:latest
+  R_IMAGE: ghcr.io/yandingzhao/2species2pipelines/r-methods:latest
+  PYTHON_IMAGE: ghcr.io/yandingzhao/2species2pipelines/python-methods:latest
   DATA_DIR: tests/data/data
   NORM_DIR: tests/data/normalized
 
@@ -27,7 +27,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       # ── Create output directories ────────────────────────────────────────────
       - name: Create output directories
