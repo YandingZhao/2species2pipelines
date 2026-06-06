@@ -14,6 +14,7 @@ import pandas as pd
 import scanpy as sc
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from feature_selection import load_features_file
 from normalization import NORM_METHODS, apply_normalization
 
 
@@ -27,6 +28,11 @@ def parse_args():
     parser.add_argument(
         "--normalization", default="log_norm", choices=NORM_METHODS,
         help="Normalization applied before PCA/integration.",
+    )
+    parser.add_argument(
+        "--features_file", default=None,
+        help="Optional path to a gene list (one per line) from run_feature_selection.py. "
+             "When provided, integration is restricted to those genes.",
     )
     return parser.parse_args()
 
@@ -49,6 +55,9 @@ def main():
     sc.pp.filter_genes(adata_b, min_cells=10)
 
     common_genes = sorted(set(adata_a.var_names).intersection(adata_b.var_names))
+    if args.features_file:
+        selected = set(load_features_file(args.features_file))
+        common_genes = [g for g in common_genes if g in selected]
     if len(common_genes) < 50:
         raise ValueError("Insufficient shared genes between inputs for BBKNN")
 
@@ -105,6 +114,8 @@ def main():
         handle.write(f"genes: {adata_bbknn.n_vars}\n")
         handle.write(f"seed: {seed}\n")
         handle.write(f"normalization: {args.normalization}\n")
+        handle.write(f"features_file: {args.features_file or 'none'}\n")
+        handle.write(f"n_genes_used: {adata_bbknn.n_vars}\n")
         handle.write(f"elapsed_seconds: {elapsed:.2f}\n")
         handle.write("status: ok\n")
 
