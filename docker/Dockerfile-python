@@ -25,10 +25,17 @@ RUN pip install --no-cache-dir --default-timeout=300 --retries=10 \
     scikit-learn==1.5.2
 
 # Feature selection methods (Phase 2)
+# git is needed to install hotspot from GitHub (not on PyPI)
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN pip install --no-cache-dir --default-timeout=300 --retries=10 \
     triku==2.2.0 \
-    hotspot==0.9.2 \
     anticor-features==0.1.8
+
+# hotspot (Yosef lab autocorrelation; not on PyPI — install from GitHub)
+RUN pip install --no-cache-dir \
+    "git+https://github.com/YosefLab/Hotspot.git@master#egg=hotspot"
 
 # scgen 2.x was written against an older scvi-tools API. Two private symbols
 # were removed/renamed in scvi-tools 1.x; add compatibility shims so imports resolve.
