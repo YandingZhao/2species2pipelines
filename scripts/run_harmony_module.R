@@ -7,6 +7,9 @@ scran_lognorm <- function(obj) {
   suppressPackageStartupMessages({
     library(SingleCellExperiment); library(scran); library(scuttle)
   })
+  # Seurat v5 stores per-sample layers after merge (counts.1, counts.2, …);
+  # join them into a single counts layer before extracting the full matrix.
+  obj        <- JoinLayers(obj, assay = "RNA")
   counts_mat <- LayerData(obj, assay = "RNA", layer = "counts")
   sce   <- SingleCellExperiment(assays = list(counts = counts_mat))
   n     <- ncol(sce)
