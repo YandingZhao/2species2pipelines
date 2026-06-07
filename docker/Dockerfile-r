@@ -27,6 +27,6 @@ RUN R -e "BiocManager::install('M3Drop', ask=FALSE, update=FALSE)"
 RUN R -e "BiocManager::install('scry',   ask=FALSE, update=FALSE)"
 RUN R -e "install.packages(c('scPNMF','singleCellHaystack'), repos='https://cloud.r-project.org')"
 RUN R -e "remotes::install_github('prabhakarlab/DUBStepR')"
-RUN R -e "remotes::install_github('LuyiTian/scSEGIndex')"
+RUN R -e "tryCatch(remotes::install_github('LuyiTian/scSEGIndex'), error=function(e) message('scSEGIndex unavailable, skipping: ', e\$message))"
 
 WORKDIR /workspace
