@@ -1,0 +1,125 @@
+name: Generate Feature Selections
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate-feature-selections:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      # ── Build images locally ─────────────────────────────────────────────────
+      - name: Build Python image
+        run: docker build -t python-methods:local -f docker/Dockerfile-python .
+
+      - name: Build R image
+        run: docker build -t r-methods:local -f docker/Dockerfile-r .
+
+      # ── Create output directories ────────────────────────────────────────────
+      - name: Create output directories
+        run: |
+          for norm in log_norm pearson_residuals raw_counts scran; do
+            mkdir -p tests/data/feature_selected/python/$norm
+          done
+          for norm in log_norm scran sctransform raw_counts; do
+            mkdir -p tests/data/feature_selected/r/$norm
+          done
+
+      # ── Python: all norms × all methods × all n_features ────────────────────
+      # Runs inside a single container to avoid per-container startup overhead.
+      # Individual method failures are caught with || true so the loop continues.
+      - name: Python feature selections
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            python-methods:local bash -c '
+              set -e
+              PY_METHODS="seurat_v3 seurat_v3_batch seurat seurat_batch \
+                          cell_ranger cell_ranger_batch \
+                          pearson pearson_batch \
+                          mean variance wilcoxon \
+                          triku hotspot anticor random all"
+              N_FEATURES="500 1000 2000 3000"
+              for norm in log_norm pearson_residuals raw_counts scran; do
+                echo "=== Python norm: $norm ==="
+                INPUT_A=/work/tests/data/normalized/python/${norm}/Dog_pt15_Immune_Lymphoid_diet.h5ad
+                INPUT_B=/work/tests/data/normalized/python/${norm}/Human_X00004_Immune_Lymphoid_diet.h5ad
+                OUT_DIR=/work/tests/data/feature_selected/python/${norm}
+                cd $OUT_DIR
+                for method in $PY_METHODS; do
+                  for n in $N_FEATURES; do
+                    echo "  $method / n=$n"
+                    python3 /work/scripts/run_feature_selection.py \
+                      --input_a $INPUT_A \
+                      --input_b $INPUT_B \
+                      --sample_id fs \
+                      --species_a dog \
+                      --species_b human \
+                      --method $method \
+                      --n_features $n \
+                      || echo "  WARNING: $norm/$method/$n failed, skipping"
+                  done
+                done
+              done
+            '
+
+      # ── R: all norms × all methods × all n_features ─────────────────────────
+      - name: R feature selections
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            r-methods:local bash -c '
+              set -e
+              R_METHODS="seurat_vst seurat_mvp seurat_disp seurat_sct \
+                         osca brennecke nbumi \
+                         dubstepr scry scpnmf \
+                         singlecellhaystack scsegindex \
+                         random all"
+              N_FEATURES="500 1000 2000 3000"
+              for norm in log_norm scran sctransform raw_counts; do
+                echo "=== R norm: $norm ==="
+                INPUT_A=/work/tests/data/normalized/r/${norm}/Dog_pt15_Immune_Lymphoid_diet.rds
+                INPUT_B=/work/tests/data/normalized/r/${norm}/Human_X00004_Immune_Lymphoid_diet.rds
+                OUT_DIR=/work/tests/data/feature_selected/r/${norm}
+                cd $OUT_DIR
+                for method in $R_METHODS; do
+                  for n in $N_FEATURES; do
+                    echo "  $method / n=$n"
+                    Rscript /work/scripts/run_feature_selection_r.R \
+                      --input_a $INPUT_A \
+                      --input_b $INPUT_B \
+                      --sample_id fs \
+                      --species_a dog \
+                      --species_b human \
+                      --method $method \
+                      --n_features $n \
+                      || echo "  WARNING: $norm/$method/$n failed, skipping"
+                  done
+                done
+              done
+            '
+
+      # ── Commit all feature selection outputs ─────────────────────────────────
+      - name: Commit feature selections
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add tests/data/feature_selected/
+          if git diff --cached --quiet; then
+            echo "No changes to commit — all feature files already up to date."
+          else
+            COUNT=$(git diff --cached --name-only | wc -l)
+            git commit -m "chore: generate feature selection fixtures (${COUNT} files) [skip ci]
+
+All norms x methods x n_features combinations:
+- Python: 4 norms x 16 methods x 4 n_features
+- R: 4 norms x 14 methods x 4 n_features"
+            git push origin HEAD:${{ github.ref_name }}
+          fi
