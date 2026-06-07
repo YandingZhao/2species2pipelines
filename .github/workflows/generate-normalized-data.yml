@@ -4,9 +4,8 @@ on:
   workflow_dispatch:
 
 env:
-  REGISTRY: ghcr.io
-  R_IMAGE: ghcr.io/yandingzhao/2species2pipelines/r-methods:latest
-  PYTHON_IMAGE: ghcr.io/yandingzhao/2species2pipelines/python-methods:latest
+  R_IMAGE: r-methods:local
+  PYTHON_IMAGE: python-methods:local
   DATA_DIR: tests/data/data
   NORM_DIR: tests/data/normalized
 
@@ -15,19 +14,18 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      packages: read
 
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
 
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      # ── Build images locally (no registry needed) ────────────────────────────
+      - name: Build R image
+        run: docker build -t ${{ env.R_IMAGE }} -f docker/Dockerfile-r .
+
+      - name: Build Python image
+        run: docker build -t ${{ env.PYTHON_IMAGE }} -f docker/Dockerfile-python .
 
       # ── Create output directories ────────────────────────────────────────────
       - name: Create output directories
