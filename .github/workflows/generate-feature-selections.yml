@@ -115,11 +115,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit — all feature files already up to date."
           else
-            COUNT=$(git diff --cached --name-only | wc -l)
-            git commit -m "chore: generate feature selection fixtures (${COUNT} files) [skip ci]
-
-All norms x methods x n_features combinations:
-- Python: 4 norms x 16 methods x 4 n_features
-- R: 4 norms x 14 methods x 4 n_features"
+            git commit -m "chore: generate feature selection fixtures [skip ci]"
             git push origin HEAD:${{ github.ref_name }}
           fi
