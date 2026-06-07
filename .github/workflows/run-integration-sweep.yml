@@ -111,10 +111,38 @@ jobs:
           OUTDIR="$WS/tests/results/integration_sweep"
           METRICS="$OUTDIR/metrics"
 
-          if [ ! -d "$FS_DIR" ]; then
-            echo "No FS dir for python/${NORM} — skipping"
-            exit 0
+          # ── Baseline: no features file (method picks its own HVGs) ──────────
+          sample_id="${NORM}__none__0"
+          echo "=== ${METHOD} / ${NORM} / baseline (no features file) ==="
+          timeout 480 docker run --rm \
+            -v "$WS":/work \
+            -w /work/tests/results/integration_sweep \
+            python-methods:local \
+            python3 /work/scripts/run_${METHOD}_module.py \
+              --input_a "$INPUT_A" \
+              --input_b "$INPUT_B" \
+              --sample_id "$sample_id" \
+              --species_a dog \
+              --species_b human \
+              --normalization pre_normalized \
+            || echo "WARN: baseline integration failed for ${METHOD}/${NORM}"
+          h5ad="$OUTDIR/${sample_id}_${METHOD}_integration.h5ad"
+          if [ -f "$h5ad" ]; then
+            timeout 120 docker run --rm \
+              -v "$WS":/work \
+              -w /work/tests/results/integration_sweep \
+              python-methods:local \
+              python3 /work/scripts/run_evaluate_integration.py \
+                --input_h5ad "/work/tests/results/integration_sweep/${sample_id}_${METHOD}_integration.h5ad" \
+              || echo "WARN: baseline evaluation failed for ${METHOD}/${NORM}"
+            rm -f "$h5ad"
           fi
+          src="$OUTDIR/${sample_id}_${METHOD}_integration_scib_metrics.tsv"
+          [ -f "$src" ] && cp "$src" "$METRICS/${METHOD}__${NORM}__none__0.tsv"
+          rm -f "$OUTDIR/${sample_id}_${METHOD}"*
+
+          # ── Feature-selected runs ────────────────────────────────────────────
+          [ -d "$FS_DIR" ] || { echo "No FS dir for python/${NORM} — skipping FS loop"; exit 0; }
 
           for fs_file in "$FS_DIR"/fs_*_features.txt; do
             [ -f "$fs_file" ] || continue
@@ -177,10 +205,49 @@ jobs:
           OUTDIR="$WS/tests/results/integration_sweep"
           METRICS="$OUTDIR/metrics"
 
-          if [ ! -d "$FS_DIR" ]; then
-            echo "No FS dir for r/${NORM} — skipping"
-            exit 0
+          # ── Baseline: no features file (method picks its own HVGs) ──────────
+          sample_id="${NORM}__none__0"
+          echo "=== ${METHOD} / ${NORM} / baseline (no features file) ==="
+          timeout 480 docker run --rm \
+            -v "$WS":/work \
+            -w /work/tests/results/integration_sweep \
+            r-methods:local \
+            Rscript /work/scripts/run_${METHOD}_module.R \
+              --input_a "$INPUT_A" \
+              --input_b "$INPUT_B" \
+              --sample_id "$sample_id" \
+              --species_a dog \
+              --species_b human \
+              --normalization pre_normalized \
+            || echo "WARN: baseline R integration failed for ${METHOD}/${NORM}"
+          rds="$OUTDIR/${sample_id}_${METHOD}_integration.rds"
+          if [ -f "$rds" ]; then
+            timeout 120 docker run --rm \
+              -v "$WS":/work \
+              -w /work/tests/results/integration_sweep \
+              r-methods:local \
+              Rscript /work/scripts/run_seurat_to_anndata.R \
+                --input_a "/work/tests/results/integration_sweep/${sample_id}_${METHOD}_integration.rds" \
+              || echo "WARN: baseline RDS→h5ad conversion failed for ${METHOD}/${NORM}"
+            rm -f "$rds"
           fi
+          h5ad="$OUTDIR/${sample_id}_${METHOD}_integration.h5ad"
+          if [ -f "$h5ad" ]; then
+            timeout 120 docker run --rm \
+              -v "$WS":/work \
+              -w /work/tests/results/integration_sweep \
+              python-methods:local \
+              python3 /work/scripts/run_evaluate_integration.py \
+                --input_h5ad "/work/tests/results/integration_sweep/${sample_id}_${METHOD}_integration.h5ad" \
+              || echo "WARN: baseline evaluation failed for ${METHOD}/${NORM}"
+            rm -f "$h5ad"
+          fi
+          src="$OUTDIR/${sample_id}_${METHOD}_integration_scib_metrics.tsv"
+          [ -f "$src" ] && cp "$src" "$METRICS/${METHOD}__${NORM}__none__0.tsv"
+          rm -f "$OUTDIR/${sample_id}_${METHOD}"*
+
+          # ── Feature-selected runs ────────────────────────────────────────────
+          [ -d "$FS_DIR" ] || { echo "No FS dir for r/${NORM} — skipping FS loop"; exit 0; }
 
           for fs_file in "$FS_DIR"/fs_*_features.txt; do
             [ -f "$fs_file" ] || continue
