@@ -49,43 +49,28 @@ jobs:
         with:
           ref: ${{ github.ref }}
 
-      # ── Build Docker images ─────────────────────────────────────────────────
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      # ── Free disk space (Python image has CUDA packages; runner fills up fast) ─
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /opt/hostedtoolcache/CodeQL /usr/share/swift \
+                      /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
+          sudo docker image prune -af
+          df -h
 
+      # ── Build Docker images ─────────────────────────────────────────────────
       - name: Build Python image
         if: matrix.lang == 'python'
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: docker/Dockerfile-python
-          tags: python-methods:local
-          cache-from: type=gha,scope=python-image
-          cache-to: type=gha,scope=python-image,mode=max
-          load: true
+        run: docker build -t python-methods:local -f docker/Dockerfile-python .
 
       - name: Build R image
         if: matrix.lang == 'r'
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: docker/Dockerfile-r
-          tags: r-methods:local
-          cache-from: type=gha,scope=r-image
-          cache-to: type=gha,scope=r-image,mode=max
-          load: true
+        run: docker build -t r-methods:local -f docker/Dockerfile-r .
 
       # R jobs also need Python image for evaluation (scib-metrics)
       - name: Build Python image (R evaluation)
         if: matrix.lang == 'r'
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: docker/Dockerfile-python
-          tags: python-methods:local
-          cache-from: type=gha,scope=python-image
-          cache-to: type=gha,scope=python-image,mode=max
-          load: true
+        run: docker build -t python-methods:local -f docker/Dockerfile-python .
 
       # ── Create output dirs ──────────────────────────────────────────────────
       - name: Create output directories
