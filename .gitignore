@@ -2,3 +2,4 @@
 .nextflow*
 work/
 tests/results/
+!tests/results/integration_sweep/all_metrics.tsv
