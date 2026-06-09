@@ -35,19 +35,14 @@ jobs:
         run: docker build -t python-methods:local -f docker/Dockerfile-python .
 
       - name: Create output directories
-        run: |
-          mkdir -p tests/results/integration_sweep
-          mkdir -p tests/results/samap_fix/${{ matrix.norm }}
+        run: mkdir -p tests/results/integration_sweep/metrics
 
       - name: SAMap integration loop
         if: matrix.lang == 'samap'
-        env:
-          NORM: ${{ matrix.norm }}
-          METHOD: ${{ matrix.method }}
-          WS: ${{ github.workspace }}
         run: |
-          OUTDIR="$WS/tests/results/samap_fix/${NORM}"
-          METRICS="$WS/tests/results/integration_sweep"
+          METHOD="samap"
+          NORM="${{ matrix.norm }}"
+          WS="${{ github.workspace }}"
 
           if [ "$NORM" = "scran" ]; then
             INPUT_A=/work/tests/data/normalized/python/scran/Dog_pt15_Immune_Lymphoid_diet_scran.h5ad
@@ -57,58 +52,54 @@ jobs:
             INPUT_B=/work/tests/data/normalized/python/${NORM}/Human_X00004_Immune_Lymphoid_diet.h5ad
           fi
 
+          FS_DIR="$WS/tests/data/feature_selected/python/${NORM}"
+          OUTDIR="$WS/tests/results/integration_sweep"
+          METRICS="$OUTDIR/metrics"
+
           run_one() {
-            local sample_id="$1"
-            local extra_args="$2"
-            docker run --rm \
-              -v "$WS":/work -w /work/tests/results/samap_fix/${NORM} \
+            local sample_id="$1" fs_arg="$2"
+            timeout 600 docker run --rm \
+              -v "$WS":/work -w /work/tests/results/integration_sweep \
               samap-methods:local \
-              python /work/scripts/run_samap_module.py \
+              python3 /work/scripts/run_samap_module.py \
                 --input_a "$INPUT_A" --input_b "$INPUT_B" \
                 --sample_id "$sample_id" \
                 --species_a dog --species_b human \
-                --normalization "${NORM}" \
-                $extra_args \
-            || { echo "WARN: samap integration failed for $sample_id"; return; }
-
+                --normalization pre_normalized $fs_arg \
+              || { echo "WARN: samap integration failed for $sample_id"; return; }
             local h5ad="$OUTDIR/${sample_id}_samap_integration.h5ad"
             [ -f "$h5ad" ] || return
             timeout 120 docker run --rm \
               -v "$WS":/work -w /work/tests/results/integration_sweep \
               python-methods:local \
-              python /work/scripts/evaluate_integration.py \
-                --h5ad /work/tests/results/samap_fix/${NORM}/${sample_id}_samap_integration.h5ad \
-                --method samap --norm "${NORM}" \
-                --sample_id "$sample_id" \
-                --output_prefix "${sample_id}_samap_metrics" \
-            || echo "WARN: samap evaluation failed for $sample_id"
-
-            local src="$METRICS/${sample_id}_samap_metrics.tsv"
-            [ -f "$src" ] && cp "$src" "$METRICS/samap__${sample_id}.tsv" && rm -f "$src"
+              python3 /work/scripts/run_evaluate_integration.py \
+                --input_h5ad "/work/tests/results/integration_sweep/${sample_id}_samap_integration.h5ad" \
+              || echo "WARN: samap evaluation failed for $sample_id"
+            rm -f "$h5ad"
+            local src="$OUTDIR/${sample_id}_samap_integration_scib_metrics.tsv"
+            [ -f "$src" ] && cp "$src" "$METRICS/samap__${sample_id}.tsv" || true
+            rm -f "$OUTDIR/${sample_id}_samap"*
           }
 
           echo "=== samap / ${NORM} / baseline ==="
           run_one "${NORM}__none__0" ""
 
-          FS_DIR="$WS/tests/data/feature_selected/python/${NORM}"
-          if [ -d "$FS_DIR" ]; then
-            for fs_file in "$FS_DIR"/*.txt; do
-              [ -f "$fs_file" ] || continue
-              base=$(basename "$fs_file" .txt)
-              fs_method="${base%__*}"
-              n="${base##*__}"
-              sample_id="${NORM}__${fs_method}__${n}"
-              echo "=== samap / ${NORM} / ${fs_method} / n=${n} ==="
-              run_one "$sample_id" "--features_file /work/tests/data/feature_selected/python/${NORM}/$(basename "$fs_file")"
-            done
-          fi
+          [ -d "$FS_DIR" ] || exit 0
+          for fs_file in "$FS_DIR"/fs_*_features.txt; do
+            [ -f "$fs_file" ] || continue
+            bname=$(basename "$fs_file" _features.txt)
+            n="${bname##*_}"; fs_method="${bname%_${n}}"; fs_method="${fs_method#fs_}"
+            sample_id="${NORM}__${fs_method}__${n}"
+            echo "=== samap / ${NORM} / ${fs_method} / n=${n} ==="
+            run_one "$sample_id" "--features_file /work/tests/data/feature_selected/python/${NORM}/$(basename "$fs_file")"
+          done
 
       - name: Upload metrics artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: metrics-samap-${{ matrix.norm }}
-          path: tests/results/integration_sweep/samap__*.tsv
+          path: tests/results/integration_sweep/metrics/samap__*.tsv
           if-no-files-found: warn
 
   aggregate:
