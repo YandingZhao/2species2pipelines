@@ -17,6 +17,7 @@ import anndata as ad
 import numpy as np
 import pandas as pd
 import scanpy as sc
+import scipy.sparse as sp
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from normalization import NORM_METHODS, apply_normalization
@@ -52,6 +53,14 @@ def parse_args():
 def ensure_obs_column(adata, key, default_value):
     if key not in adata.obs.columns:
         adata.obs[key] = default_value
+
+
+def _inplace_top_n_genes(adata: ad.AnnData, n_top: int) -> None:
+    """Select top-n genes by variance, robust to inf/nan (scran, raw_counts)."""
+    mat = adata.X.toarray() if sp.issparse(adata.X) else np.asarray(adata.X, dtype=float)
+    mat = np.nan_to_num(mat, nan=0.0, posinf=0.0, neginf=0.0)
+    top_idx = np.argsort(mat.var(axis=0))[::-1][:n_top]
+    adata._inplace_subset_var(adata.var_names[top_idx])
 
 
 def _short_id(species: str) -> str:
@@ -105,22 +114,14 @@ def main():
     # Preprocess per species: normalize then select genes
     for adata, n in [(adata_a, args.n_top_genes), (adata_b, args.n_top_genes)]:
         apply_normalization(adata, samap_norm)
-        # Fix older-scanpy log1p uns format that lacks the 'base' key
-        if "log1p" in adata.uns:
-            if not isinstance(adata.uns["log1p"], dict):
-                adata.uns["log1p"] = {"base": None}
-            else:
-                adata.uns["log1p"].setdefault("base", None)
         if feature_genes is not None:
             keep = [g for g in feature_genes if g in adata.var_names]
             if len(keep) >= 10:
                 adata._inplace_subset_var(keep)
             else:
-                n_hvg = min(n, adata.n_vars)
-                sc.pp.highly_variable_genes(adata, n_top_genes=n_hvg)
+                _inplace_top_n_genes(adata, min(n, adata.n_vars))
         else:
-            n_hvg = min(n, adata.n_vars)
-            sc.pp.highly_variable_genes(adata, n_top_genes=n_hvg)
+            _inplace_top_n_genes(adata, min(n, adata.n_vars))
 
     start = time.time()
 
