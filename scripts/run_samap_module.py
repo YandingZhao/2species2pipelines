@@ -41,6 +41,11 @@ def parse_args():
         "--normalization", default="log_norm", choices=NORM_METHODS,
         help="Normalization applied before SAMap.",
     )
+    parser.add_argument(
+        "--features_file", default=None,
+        help="Optional gene list (one per line). When provided, restricts each "
+             "species to the intersection of this list and its own genes.",
+    )
     return parser.parse_args()
 
 
@@ -87,11 +92,25 @@ def main():
     adata_a.obs["batch"] = f"{args.sample_id}_{args.species_a}"
     adata_b.obs["batch"] = f"{args.sample_id}_{args.species_b}"
 
-    # Preprocess per species: normalize then select HVGs
+    # Load feature list if provided
+    feature_genes = None
+    if args.features_file is not None:
+        with open(args.features_file) as fh:
+            feature_genes = [l.strip() for l in fh if l.strip()]
+
+    # Preprocess per species: normalize then select genes
     for adata, n in [(adata_a, args.n_top_genes), (adata_b, args.n_top_genes)]:
         apply_normalization(adata, args.normalization)
-        n_hvg = min(n, adata.n_vars)
-        sc.pp.highly_variable_genes(adata, n_top_genes=n_hvg)
+        if feature_genes is not None:
+            keep = [g for g in feature_genes if g in adata.var_names]
+            if len(keep) >= 10:
+                adata._inplace_subset_var(keep)
+            else:
+                n_hvg = min(n, adata.n_vars)
+                sc.pp.highly_variable_genes(adata, n_top_genes=n_hvg)
+        else:
+            n_hvg = min(n, adata.n_vars)
+            sc.pp.highly_variable_genes(adata, n_top_genes=n_hvg)
 
     start = time.time()
 

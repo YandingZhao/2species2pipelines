@@ -60,6 +60,11 @@ def parse_args():
         "--normalization", default="log_norm", choices=NORM_METHODS,
         help="Normalization applied before gene embedding projection.",
     )
+    parser.add_argument(
+        "--features_file", default=None,
+        help="Optional gene list (one per line). When provided, restricts each "
+             "species to the intersection of this list and its own genes.",
+    )
     return parser.parse_args()
 
 
@@ -131,13 +136,23 @@ def _get_gene_embeddings(gene_names: list, embed_dim: int, use_esm2: bool) -> np
     return _hash_embeddings(gene_names, embed_dim)
 
 
-def _preprocess(adata: ad.AnnData, n_top_genes: int, species_label: str, sample_id: str, normalization: str = "log_norm") -> ad.AnnData:
+def _preprocess(adata: ad.AnnData, n_top_genes: int, species_label: str, sample_id: str,
+                normalization: str = "log_norm", feature_genes: list = None) -> ad.AnnData:
     sc.pp.filter_cells(adata, min_genes=200)
     sc.pp.filter_genes(adata, min_cells=10)
     apply_normalization(adata, normalization)
-    n_hvg = min(n_top_genes, adata.n_vars)
-    sc.pp.highly_variable_genes(adata, n_top_genes=n_hvg)
-    adata = adata[:, adata.var["highly_variable"]].copy()
+    if feature_genes is not None:
+        keep = [g for g in feature_genes if g in adata.var_names]
+        if len(keep) >= 10:
+            adata = adata[:, keep].copy()
+        else:
+            n_hvg = min(n_top_genes, adata.n_vars)
+            sc.pp.highly_variable_genes(adata, n_top_genes=n_hvg)
+            adata = adata[:, adata.var["highly_variable"]].copy()
+    else:
+        n_hvg = min(n_top_genes, adata.n_vars)
+        sc.pp.highly_variable_genes(adata, n_top_genes=n_hvg)
+        adata = adata[:, adata.var["highly_variable"]].copy()
     ensure_obs_column(adata, "celltype", "unknown")
     adata.obs["batch"] = f"{sample_id}_{species_label}"
     return adata
@@ -152,11 +167,16 @@ def _expression_matrix(adata: ad.AnnData) -> np.ndarray:
 def main():
     args = parse_args()
 
+    feature_genes = None
+    if args.features_file is not None:
+        with open(args.features_file) as fh:
+            feature_genes = [l.strip() for l in fh if l.strip()]
+
     adata_a = sc.read_h5ad(args.input_a)
     adata_b = sc.read_h5ad(args.input_b)
 
-    adata_a = _preprocess(adata_a, args.n_top_genes, args.species_a, args.sample_id, args.normalization)
-    adata_b = _preprocess(adata_b, args.n_top_genes, args.species_b, args.sample_id, args.normalization)
+    adata_a = _preprocess(adata_a, args.n_top_genes, args.species_a, args.sample_id, args.normalization, feature_genes)
+    adata_b = _preprocess(adata_b, args.n_top_genes, args.species_b, args.sample_id, args.normalization, feature_genes)
 
     print(f"Generating gene embeddings for {adata_a.n_vars} {args.species_a} genes...")
     emb_a = _get_gene_embeddings(list(adata_a.var_names), args.embed_dim, args.use_esm2)

@@ -30,6 +30,16 @@ jobs:
           - { method: scgen,     lang: python, norm: pearson_residuals }
           - { method: scgen,     lang: python, norm: raw_counts }
           - { method: scgen,     lang: python, norm: scran }
+          # ── SAMap × Python norms ──────────────────────────────────────────
+          - { method: samap,  lang: samap, norm: log_norm }
+          - { method: samap,  lang: samap, norm: pearson_residuals }
+          - { method: samap,  lang: samap, norm: raw_counts }
+          - { method: samap,  lang: samap, norm: scran }
+          # ── SATURN × Python norms ─────────────────────────────────────────
+          - { method: saturn, lang: saturn, norm: log_norm }
+          - { method: saturn, lang: saturn, norm: pearson_residuals }
+          - { method: saturn, lang: saturn, norm: raw_counts }
+          - { method: saturn, lang: saturn, norm: scran }
           # ── R methods × R norms ───────────────────────────────────────────
           - { method: harmony,  lang: r, norm: log_norm }
           - { method: harmony,  lang: r, norm: scran }
@@ -70,6 +80,22 @@ jobs:
       # R jobs also need Python image for evaluation (scib-metrics)
       - name: Build Python image (R evaluation)
         if: matrix.lang == 'r'
+        run: docker build -t python-methods:local -f docker/Dockerfile-python .
+
+      - name: Build SAMap image
+        if: matrix.lang == 'samap'
+        run: docker build -t samap-methods:local -f docker/Dockerfile-samap .
+
+      - name: Build Python image (SAMap evaluation)
+        if: matrix.lang == 'samap'
+        run: docker build -t python-methods:local -f docker/Dockerfile-python .
+
+      - name: Build SATURN image
+        if: matrix.lang == 'saturn'
+        run: docker build -t saturn-methods:local -f docker/Dockerfile-saturn .
+
+      - name: Build Python image (SATURN evaluation)
+        if: matrix.lang == 'saturn'
         run: docker build -t python-methods:local -f docker/Dockerfile-python .
 
       # ── Create output dirs ──────────────────────────────────────────────────
@@ -173,6 +199,128 @@ jobs:
               cp "$src" "$METRICS/${METHOD}__${NORM}__${fs_method}__${n}.tsv"
             fi
             rm -f "$OUTDIR/${sample_id}_${METHOD}"*
+          done
+
+      # ── SAMap integration loop ──────────────────────────────────────────────
+      - name: SAMap integration loop
+        if: matrix.lang == 'samap'
+        run: |
+          METHOD="samap"
+          NORM="${{ matrix.norm }}"
+          WS="${{ github.workspace }}"
+
+          if [ "$NORM" = "scran" ]; then
+            INPUT_A=/work/tests/data/normalized/python/scran/Dog_pt15_Immune_Lymphoid_diet_scran.h5ad
+            INPUT_B=/work/tests/data/normalized/python/scran/Human_X00004_Immune_Lymphoid_diet_scran.h5ad
+          else
+            INPUT_A=/work/tests/data/normalized/python/${NORM}/Dog_pt15_Immune_Lymphoid_diet.h5ad
+            INPUT_B=/work/tests/data/normalized/python/${NORM}/Human_X00004_Immune_Lymphoid_diet.h5ad
+          fi
+
+          FS_DIR="$WS/tests/data/feature_selected/python/${NORM}"
+          OUTDIR="$WS/tests/results/integration_sweep"
+          METRICS="$OUTDIR/metrics"
+
+          run_one() {
+            local sample_id="$1" fs_arg="$2"
+            timeout 600 docker run --rm \
+              -v "$WS":/work -w /work/tests/results/integration_sweep \
+              samap-methods:local \
+              python3 /work/scripts/run_samap_module.py \
+                --input_a "$INPUT_A" --input_b "$INPUT_B" \
+                --sample_id "$sample_id" \
+                --species_a dog --species_b human \
+                --normalization pre_normalized $fs_arg \
+              || { echo "WARN: samap integration failed for $sample_id"; return; }
+            local h5ad="$OUTDIR/${sample_id}_samap_integration.h5ad"
+            [ -f "$h5ad" ] || return
+            timeout 120 docker run --rm \
+              -v "$WS":/work -w /work/tests/results/integration_sweep \
+              python-methods:local \
+              python3 /work/scripts/run_evaluate_integration.py \
+                --input_h5ad "/work/tests/results/integration_sweep/${sample_id}_samap_integration.h5ad" \
+              || echo "WARN: samap evaluation failed for $sample_id"
+            rm -f "$h5ad"
+            local src="$OUTDIR/${sample_id}_samap_integration_scib_metrics.tsv"
+            [ -f "$src" ] && cp "$src" "$METRICS/samap__${NORM}__${sample_id##*__}.tsv" || true
+            rm -f "$OUTDIR/${sample_id}_samap"*
+          }
+
+          echo "=== samap / ${NORM} / baseline ==="
+          run_one "${NORM}__none__0" ""
+
+          [ -d "$FS_DIR" ] || exit 0
+          for fs_file in "$FS_DIR"/fs_*_features.txt; do
+            [ -f "$fs_file" ] || continue
+            bname=$(basename "$fs_file" _features.txt)
+            n="${bname##*_}"; fs_method="${bname%_${n}}"; fs_method="${fs_method#fs_}"
+            sample_id="${NORM}__${fs_method}__${n}"
+            echo "=== samap / ${NORM} / ${fs_method} / n=${n} ==="
+            run_one "$sample_id" "--features_file /work/tests/data/feature_selected/python/${NORM}/$(basename "$fs_file")"
+            cp "$OUTDIR/${sample_id}_samap_integration_scib_metrics.tsv" \
+               "$METRICS/samap__${NORM}__${fs_method}__${n}.tsv" 2>/dev/null || true
+            rm -f "$OUTDIR/${sample_id}_samap"*
+          done
+
+      # ── SATURN integration loop ─────────────────────────────────────────────
+      - name: SATURN integration loop
+        if: matrix.lang == 'saturn'
+        run: |
+          METHOD="saturn"
+          NORM="${{ matrix.norm }}"
+          WS="${{ github.workspace }}"
+
+          if [ "$NORM" = "scran" ]; then
+            INPUT_A=/work/tests/data/normalized/python/scran/Dog_pt15_Immune_Lymphoid_diet_scran.h5ad
+            INPUT_B=/work/tests/data/normalized/python/scran/Human_X00004_Immune_Lymphoid_diet_scran.h5ad
+          else
+            INPUT_A=/work/tests/data/normalized/python/${NORM}/Dog_pt15_Immune_Lymphoid_diet.h5ad
+            INPUT_B=/work/tests/data/normalized/python/${NORM}/Human_X00004_Immune_Lymphoid_diet.h5ad
+          fi
+
+          FS_DIR="$WS/tests/data/feature_selected/python/${NORM}"
+          OUTDIR="$WS/tests/results/integration_sweep"
+          METRICS="$OUTDIR/metrics"
+
+          run_one() {
+            local sample_id="$1" fs_arg="$2"
+            timeout 600 docker run --rm \
+              -v "$WS":/work -w /work/tests/results/integration_sweep \
+              saturn-methods:local \
+              python3 /work/scripts/run_saturn_module.py \
+                --input_a "$INPUT_A" --input_b "$INPUT_B" \
+                --sample_id "$sample_id" \
+                --species_a dog --species_b human \
+                --normalization pre_normalized $fs_arg \
+              || { echo "WARN: saturn integration failed for $sample_id"; return; }
+            local h5ad="$OUTDIR/${sample_id}_saturn_integration.h5ad"
+            [ -f "$h5ad" ] || return
+            timeout 120 docker run --rm \
+              -v "$WS":/work -w /work/tests/results/integration_sweep \
+              python-methods:local \
+              python3 /work/scripts/run_evaluate_integration.py \
+                --input_h5ad "/work/tests/results/integration_sweep/${sample_id}_saturn_integration.h5ad" \
+              || echo "WARN: saturn evaluation failed for $sample_id"
+            rm -f "$h5ad"
+            local src="$OUTDIR/${sample_id}_saturn_integration_scib_metrics.tsv"
+            [ -f "$src" ] && cp "$src" "$METRICS/saturn__${NORM}__${sample_id##*__}.tsv" || true
+            rm -f "$OUTDIR/${sample_id}_saturn"*
+          }
+
+          echo "=== saturn / ${NORM} / baseline ==="
+          run_one "${NORM}__none__0" ""
+
+          [ -d "$FS_DIR" ] || exit 0
+          for fs_file in "$FS_DIR"/fs_*_features.txt; do
+            [ -f "$fs_file" ] || continue
+            bname=$(basename "$fs_file" _features.txt)
+            n="${bname##*_}"; fs_method="${bname%_${n}}"; fs_method="${fs_method#fs_}"
+            sample_id="${NORM}__${fs_method}__${n}"
+            echo "=== saturn / ${NORM} / ${fs_method} / n=${n} ==="
+            run_one "$sample_id" "--features_file /work/tests/data/feature_selected/python/${NORM}/$(basename "$fs_file")"
+            cp "$OUTDIR/${sample_id}_saturn_integration_scib_metrics.tsv" \
+               "$METRICS/saturn__${NORM}__${fs_method}__${n}.tsv" 2>/dev/null || true
+            rm -f "$OUTDIR/${sample_id}_saturn"*
           done
 
       # ── R integration loop ──────────────────────────────────────────────────
