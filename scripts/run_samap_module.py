@@ -98,9 +98,19 @@ def main():
         with open(args.features_file) as fh:
             feature_genes = [l.strip() for l in fh if l.strip()]
 
+    # SAMap runs its own internal normalization; Pearson residuals (negative values)
+    # break SAMap's internal log-transform, so we always use raw counts for SAMap.
+    samap_norm = args.normalization if args.normalization not in ("pearson_residuals",) else "log_norm"
+
     # Preprocess per species: normalize then select genes
     for adata, n in [(adata_a, args.n_top_genes), (adata_b, args.n_top_genes)]:
-        apply_normalization(adata, args.normalization)
+        apply_normalization(adata, samap_norm)
+        # Fix older-scanpy log1p uns format that lacks the 'base' key
+        if "log1p" in adata.uns:
+            if not isinstance(adata.uns["log1p"], dict):
+                adata.uns["log1p"] = {"base": None}
+            else:
+                adata.uns["log1p"].setdefault("base", None)
         if feature_genes is not None:
             keep = [g for g in feature_genes if g in adata.var_names]
             if len(keep) >= 10:
@@ -123,6 +133,17 @@ def main():
     tmp_dir = tempfile.mkdtemp()
     path_a = os.path.join(tmp_dir, f"{id_a}.h5ad")
     path_b = os.path.join(tmp_dir, f"{id_b}.h5ad")
+
+    # SAMap's internal preprocess_data() recomputes HVGs; scanpy-added HVG columns
+    # (especially float-typed ones from Pearson residuals) cause an IndexError inside
+    # samalg. Strip them so SAM starts from a clean var table.
+    _hvg_cols = ["highly_variable", "means", "dispersions", "dispersions_norm",
+                 "highly_variable_rank", "highly_variable_nbatches",
+                 "highly_variable_intersection", "residual_variances"]
+    for _adata in (adata_a, adata_b):
+        _adata.var.drop(columns=[c for c in _hvg_cols if c in _adata.var.columns],
+                        inplace=True)
+
     adata_a.write_h5ad(path_a)
     adata_b.write_h5ad(path_b)
 
