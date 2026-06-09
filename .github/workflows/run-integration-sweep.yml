@@ -242,7 +242,7 @@ jobs:
               || echo "WARN: samap evaluation failed for $sample_id"
             rm -f "$h5ad"
             local src="$OUTDIR/${sample_id}_samap_integration_scib_metrics.tsv"
-            [ -f "$src" ] && cp "$src" "$METRICS/samap__${NORM}__${sample_id##*__}.tsv" || true
+            [ -f "$src" ] && cp "$src" "$METRICS/samap__${sample_id}.tsv" || true
             rm -f "$OUTDIR/${sample_id}_samap"*
           }
 
@@ -257,9 +257,6 @@ jobs:
             sample_id="${NORM}__${fs_method}__${n}"
             echo "=== samap / ${NORM} / ${fs_method} / n=${n} ==="
             run_one "$sample_id" "--features_file /work/tests/data/feature_selected/python/${NORM}/$(basename "$fs_file")"
-            cp "$OUTDIR/${sample_id}_samap_integration_scib_metrics.tsv" \
-               "$METRICS/samap__${NORM}__${fs_method}__${n}.tsv" 2>/dev/null || true
-            rm -f "$OUTDIR/${sample_id}_samap"*
           done
 
       # ── SATURN integration loop ─────────────────────────────────────────────
@@ -303,7 +300,7 @@ jobs:
               || echo "WARN: saturn evaluation failed for $sample_id"
             rm -f "$h5ad"
             local src="$OUTDIR/${sample_id}_saturn_integration_scib_metrics.tsv"
-            [ -f "$src" ] && cp "$src" "$METRICS/saturn__${NORM}__${sample_id##*__}.tsv" || true
+            [ -f "$src" ] && cp "$src" "$METRICS/saturn__${sample_id}.tsv" || true
             rm -f "$OUTDIR/${sample_id}_saturn"*
           }
 
@@ -318,9 +315,6 @@ jobs:
             sample_id="${NORM}__${fs_method}__${n}"
             echo "=== saturn / ${NORM} / ${fs_method} / n=${n} ==="
             run_one "$sample_id" "--features_file /work/tests/data/feature_selected/python/${NORM}/$(basename "$fs_file")"
-            cp "$OUTDIR/${sample_id}_saturn_integration_scib_metrics.tsv" \
-               "$METRICS/saturn__${NORM}__${fs_method}__${n}.tsv" 2>/dev/null || true
-            rm -f "$OUTDIR/${sample_id}_saturn"*
           done
 
       # ── R integration loop ──────────────────────────────────────────────────
