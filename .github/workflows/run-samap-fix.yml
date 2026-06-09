@@ -28,11 +28,11 @@ jobs:
 
       - name: Build SAMap image
         if: matrix.lang == 'samap'
-        run: docker build -f Dockerfile-samap -t samap-methods:local .
+        run: docker build -t samap-methods:local -f docker/Dockerfile-samap .
 
       - name: Build Python image (SAMap evaluation)
         if: matrix.lang == 'samap'
-        run: docker build -f Dockerfile-python -t python-methods:local .
+        run: docker build -t python-methods:local -f docker/Dockerfile-python .
 
       - name: Create output directories
         run: |
