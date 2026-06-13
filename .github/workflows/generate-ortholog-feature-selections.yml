@@ -51,7 +51,9 @@ jobs:
 
       # ── Build images ─────────────────────────────────────────────────────────
       - name: Build R image
-        run: docker build -t r-methods:local -f docker/Dockerfile-r .
+        run: |
+          docker build -t r-methods:local -f docker/Dockerfile-r . \
+            --build-arg GITHUB_PAT=${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Python image
         run: docker build -t python-methods:local -f docker/Dockerfile-python .

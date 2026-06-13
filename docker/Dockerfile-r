@@ -1,5 +1,10 @@
 FROM satijalab/seurat:latest
 
+# GITHUB_PAT avoids unauthenticated rate limits (60/hr) during parallel CI builds
+# when remotes::install_github() is called. Pass via --build-arg GITHUB_PAT=<token>.
+ARG GITHUB_PAT=""
+ENV GITHUB_PAT=${GITHUB_PAT}
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libhdf5-dev \
     ca-certificates \
