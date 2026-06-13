@@ -1,0 +1,10 @@
+sample: fs
+species_a: dog
+species_b: human
+method: seurat_batch
+n_features_requested: 2000
+n_features_selected: 1916
+n_common_genes: 1916
+seed: 42
+elapsed_seconds: 0.28
+status: ok

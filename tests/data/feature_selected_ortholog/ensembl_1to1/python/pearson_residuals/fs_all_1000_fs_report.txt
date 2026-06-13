@@ -1,0 +1,10 @@
+sample: fs
+species_a: dog
+species_b: human
+method: all
+n_features_requested: 1000
+n_features_selected: 1914
+n_common_genes: 1914
+seed: 42
+elapsed_seconds: 0.00
+status: ok

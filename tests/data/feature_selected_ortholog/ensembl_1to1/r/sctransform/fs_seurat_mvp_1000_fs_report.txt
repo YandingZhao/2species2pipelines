@@ -1,0 +1,9 @@
+sample: fs
+species_a: dog
+species_b: human
+method: seurat_mvp
+n_features_requested: 1000
+n_features_selected: 1626
+n_common_genes: 3460
+seed: 42
+status: ok
