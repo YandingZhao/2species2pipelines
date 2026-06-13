@@ -1,0 +1,9 @@
+sample: fs
+species_a: dog
+species_b: human
+method: all
+n_features_requested: 500
+n_features_selected: 8194
+n_common_genes: 8194
+seed: 42
+status: ok

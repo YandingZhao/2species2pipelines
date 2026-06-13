@@ -1,0 +1,10 @@
+sample: fs
+species_a: dog
+species_b: human
+method: pearson_batch
+n_features_requested: 3000
+n_features_selected: 1952
+n_common_genes: 1952
+seed: 42
+elapsed_seconds: 1.33
+status: ok
