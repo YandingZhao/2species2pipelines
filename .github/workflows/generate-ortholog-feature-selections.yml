@@ -1,0 +1,264 @@
+name: Generate Ortholog Feature Selections
+
+# Pre-generates feature selection gene lists for each ortholog strategy.
+# Must be run BEFORE "Ortholog Strategy Sweep".
+#
+# Pipeline per job: ortholog_convert → normalize → generate_FS (all methods × n_features)
+# Output committed to: tests/data/feature_selected_ortholog/{strategy}/{python|r}/{norm}/
+#
+# One job per strategy (3 jobs); each handles all norms for that strategy.
+
+on:
+  workflow_dispatch:
+    inputs:
+      strategy:
+        description: 'Strategy to generate (or "all" for all three)'
+        default: 'all'
+        type: choice
+        options: [all, symbol, ensembl_1to1, ensembl_1tomany]
+
+jobs:
+  generate-fs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        strategy: [symbol, ensembl_1to1, ensembl_1tomany]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Skip if not selected strategy
+        if: github.event.inputs.strategy != 'all' && github.event.inputs.strategy != matrix.strategy
+        run: |
+          echo "Skipping ${{ matrix.strategy }} (only running ${{ github.event.inputs.strategy }})"
+          exit 0
+
+      # ── Free disk space ──────────────────────────────────────────────────────
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /opt/hostedtoolcache/CodeQL /usr/share/swift \
+                      /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
+          sudo docker image prune -af
+          df -h
+
+      # ── Build images ─────────────────────────────────────────────────────────
+      - name: Build R image
+        run: docker build -t r-methods:local -f docker/Dockerfile-r .
+
+      - name: Build Python image
+        run: docker build -t python-methods:local -f docker/Dockerfile-python .
+
+      # ── Create output directories ────────────────────────────────────────────
+      - name: Create output directories
+        run: |
+          STRATEGY="${{ matrix.strategy }}"
+          for norm in log_norm pearson_residuals raw_counts scran; do
+            mkdir -p tests/data/feature_selected_ortholog/$STRATEGY/python/$norm
+          done
+          for norm in log_norm scran sctransform raw_counts; do
+            mkdir -p tests/data/feature_selected_ortholog/$STRATEGY/r/$norm
+          done
+          mkdir -p tests/results/ortholog_fs/converted
+          mkdir -p tests/results/ortholog_fs/normalized/python
+          mkdir -p tests/results/ortholog_fs/normalized/r
+
+      # ── Ortholog conversion ──────────────────────────────────────────────────
+      - name: Ortholog conversion
+        run: |
+          STRATEGY="${{ matrix.strategy }}"
+          WS="${{ github.workspace }}"
+
+          MAP_ARG=""
+          if [[ "$STRATEGY" == blast_bbh_* ]] || [[ "$STRATEGY" == "orthofinder" ]]; then
+            MAP="$WS/tests/data/ortholog_maps/$STRATEGY/gene_map.tsv"
+            [ -f "$MAP" ] || { echo "ERROR: gene_map.tsv not found at $MAP"; exit 1; }
+            MAP_ARG="--map_file /work/tests/data/ortholog_maps/$STRATEGY/gene_map.tsv"
+          fi
+
+          docker run --rm \
+            -v "$WS":/work \
+            r-methods:local \
+            Rscript /work/scripts/run_ortholog_convert.R \
+              --strategy   "$STRATEGY" \
+              --input_a    /work/tests/data/data/Dog_pt15_Immune_Lymphoid_diet.rds \
+              --input_b    /work/tests/data/data/Human_X00004_Immune_Lymphoid_diet.rds \
+              --species_a  dog \
+              --species_b  human \
+              --output_a   /work/tests/results/ortholog_fs/converted/Dog_converted.rds \
+              --output_b   /work/tests/results/ortholog_fs/converted/Human_converted.rds \
+              $MAP_ARG
+
+      # ── Convert RDS → raw h5ad (for Python normalizations) ──────────────────
+      - name: Convert converted RDS to h5ad
+        run: |
+          WS="${{ github.workspace }}"
+          docker run --rm \
+            -v "$WS":/work \
+            -w /work/tests/results/ortholog_fs/converted \
+            r-methods:local \
+            Rscript /work/scripts/run_seurat_to_anndata.R \
+              --input_a /work/tests/results/ortholog_fs/converted/Dog_converted.rds \
+              --input_b /work/tests/results/ortholog_fs/converted/Human_converted.rds
+
+      # ── Python normalizations ────────────────────────────────────────────────
+      - name: Python normalizations (log_norm, pearson_residuals, raw_counts)
+        run: |
+          WS="${{ github.workspace }}"
+          for norm in log_norm pearson_residuals raw_counts; do
+            for sp in Dog Human; do
+              docker run --rm \
+                -v "$WS":/work \
+                python-methods:local \
+                python3 /work/scripts/run_normalize_python.py \
+                  --input  /work/tests/results/ortholog_fs/converted/${sp}_converted.h5ad \
+                  --output /work/tests/results/ortholog_fs/normalized/python/${sp}_${norm}.h5ad \
+                  --method "$norm" \
+                || echo "WARN: $sp / $norm normalization failed"
+            done
+          done
+
+      - name: R scran normalization (for Python scran pipeline)
+        run: |
+          WS="${{ github.workspace }}"
+          docker run --rm \
+            -v "$WS":/work \
+            r-methods:local \
+            Rscript /work/scripts/run_normalize_r.R \
+              --input_a  /work/tests/results/ortholog_fs/converted/Dog_converted.rds \
+              --input_b  /work/tests/results/ortholog_fs/converted/Human_converted.rds \
+              --method   scran \
+              --output_a /work/tests/results/ortholog_fs/normalized/python/Dog_scran.rds \
+              --output_b /work/tests/results/ortholog_fs/normalized/python/Human_scran.rds
+
+      - name: Convert scran RDS → h5ad
+        run: |
+          WS="${{ github.workspace }}"
+          docker run --rm \
+            -v "$WS":/work \
+            -w /work/tests/results/ortholog_fs/normalized/python \
+            r-methods:local \
+            Rscript /work/scripts/run_seurat_to_anndata.R \
+              --input_a /work/tests/results/ortholog_fs/normalized/python/Dog_scran.rds \
+              --input_b /work/tests/results/ortholog_fs/normalized/python/Human_scran.rds
+
+      # ── R normalizations ─────────────────────────────────────────────────────
+      - name: R normalizations (log_norm, scran, sctransform, raw_counts)
+        run: |
+          WS="${{ github.workspace }}"
+          for norm in log_norm scran sctransform raw_counts; do
+            docker run --rm \
+              -v "$WS":/work \
+              r-methods:local \
+              Rscript /work/scripts/run_normalize_r.R \
+                --input_a  /work/tests/results/ortholog_fs/converted/Dog_converted.rds \
+                --input_b  /work/tests/results/ortholog_fs/converted/Human_converted.rds \
+                --method   "$norm" \
+                --output_a /work/tests/results/ortholog_fs/normalized/r/Dog_${norm}.rds \
+                --output_b /work/tests/results/ortholog_fs/normalized/r/Human_${norm}.rds \
+              || echo "WARN: R $norm normalization failed"
+          done
+
+      # ── Python feature selections ─────────────────────────────────────────────
+      - name: Python feature selections (all norms × all methods × all n_features)
+        run: |
+          STRATEGY="${{ matrix.strategy }}"
+          WS="${{ github.workspace }}"
+          docker run --rm \
+            -v "$WS":/work \
+            python-methods:local bash -c '
+              STRATEGY="'"$STRATEGY"'"
+              PY_METHODS="seurat_v3 seurat_v3_batch seurat seurat_batch \
+                          cell_ranger cell_ranger_batch \
+                          pearson pearson_batch \
+                          mean variance wilcoxon \
+                          triku hotspot anticor random all"
+              N_FEATURES="500 1000 2000 3000"
+              for norm in log_norm pearson_residuals raw_counts scran; do
+                echo "=== Python norm: $norm ==="
+                if [ "$norm" = "scran" ]; then
+                  INPUT_A=/work/tests/results/ortholog_fs/normalized/python/Dog_scran.h5ad
+                  INPUT_B=/work/tests/results/ortholog_fs/normalized/python/Human_scran.h5ad
+                else
+                  INPUT_A=/work/tests/results/ortholog_fs/normalized/python/Dog_${norm}.h5ad
+                  INPUT_B=/work/tests/results/ortholog_fs/normalized/python/Human_${norm}.h5ad
+                fi
+                [ -f "$INPUT_A" ] || { echo "  WARN: $INPUT_A missing, skipping norm $norm"; continue; }
+                OUT_DIR=/work/tests/data/feature_selected_ortholog/${STRATEGY}/python/${norm}
+                cd "$OUT_DIR"
+                for method in $PY_METHODS; do
+                  for n in $N_FEATURES; do
+                    echo "  $method / n=$n"
+                    python3 /work/scripts/run_feature_selection.py \
+                      --input_a "$INPUT_A" \
+                      --input_b "$INPUT_B" \
+                      --sample_id fs \
+                      --species_a dog \
+                      --species_b human \
+                      --method "$method" \
+                      --n_features "$n" \
+                      || echo "  WARNING: $norm/$method/$n failed, skipping"
+                  done
+                done
+              done
+            '
+
+      # ── R feature selections ──────────────────────────────────────────────────
+      - name: R feature selections (all norms × all methods × all n_features)
+        run: |
+          STRATEGY="${{ matrix.strategy }}"
+          WS="${{ github.workspace }}"
+          docker run --rm \
+            -v "$WS":/work \
+            r-methods:local bash -c '
+              STRATEGY="'"$STRATEGY"'"
+              R_METHODS="seurat_vst seurat_mvp seurat_disp seurat_sct \
+                         osca brennecke nbumi \
+                         dubstepr scry scpnmf \
+                         singlecellhaystack scsegindex \
+                         random all"
+              N_FEATURES="500 1000 2000 3000"
+              for norm in log_norm scran sctransform raw_counts; do
+                echo "=== R norm: $norm ==="
+                INPUT_A=/work/tests/results/ortholog_fs/normalized/r/Dog_${norm}.rds
+                INPUT_B=/work/tests/results/ortholog_fs/normalized/r/Human_${norm}.rds
+                [ -f "$INPUT_A" ] || { echo "  WARN: $INPUT_A missing, skipping norm $norm"; continue; }
+                OUT_DIR=/work/tests/data/feature_selected_ortholog/${STRATEGY}/r/${norm}
+                cd "$OUT_DIR"
+                for method in $R_METHODS; do
+                  for n in $N_FEATURES; do
+                    echo "  $method / n=$n"
+                    Rscript /work/scripts/run_feature_selection_r.R \
+                      --input_a "$INPUT_A" \
+                      --input_b "$INPUT_B" \
+                      --sample_id fs \
+                      --species_a dog \
+                      --species_b human \
+                      --method "$method" \
+                      --n_features "$n" \
+                      || echo "  WARNING: $norm/$method/$n failed, skipping"
+                  done
+                done
+              done
+            '
+
+      # ── Commit ───────────────────────────────────────────────────────────────
+      - name: Commit feature selections
+        run: |
+          STRATEGY="${{ matrix.strategy }}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add tests/data/feature_selected_ortholog/$STRATEGY/
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: generate ortholog FS fixtures for strategy=${STRATEGY} [skip ci]"
+            git push origin HEAD:${{ github.ref_name }}
+          fi

@@ -1,15 +1,14 @@
 name: Ortholog Strategy Sweep
 
-# Benchmarks how different ortholog matching strategies (symbol, ensembl_1to1,
-# ensembl_1tomany — and optionally blast_bbh_* / orthofinder when gene_map.tsv
-# files are committed) affect integration quality.
+# Benchmarks how different ortholog matching strategies affect integration quality.
 #
-# Pipeline per job: ortholog_convert → normalize → integrate (baseline) → evaluate
-# Metrics land in:  tests/results/ortholog_sweep/all_ortholog_metrics.tsv
+# PREREQUISITE: Run "Generate Ortholog Feature Selections" first so that
+# tests/data/feature_selected_ortholog/{strategy}/ files are committed.
+# Without them, each job runs baseline only and skips the FS loop.
 #
-# To enable BLAST / OrthoFinder strategies, commit gene_map.tsv files to
-# tests/data/ortholog_maps/{blast_bbh_60,blast_bbh_80,blast_bbh_90,orthofinder}/
-# and add the corresponding matrix entries below.
+# Pipeline per job: ortholog_convert → normalize → integrate (baseline + FS loop) → evaluate
+# Aggregate output: tests/results/ortholog_sweep/all_ortholog_metrics.tsv
+#   (adds ortholog_strategy column; separate from integration_sweep all_metrics.tsv)
 
 on:
   workflow_dispatch:
@@ -26,15 +25,19 @@ jobs:
         include:
           # ── symbol strategy ──────────────────────────────────────────────────
           - { strategy: symbol, method: bbknn,     lang: python, norm: log_norm }
+          - { strategy: symbol, method: bbknn,     lang: python, norm: pearson_residuals }
           - { strategy: symbol, method: bbknn,     lang: python, norm: raw_counts }
           - { strategy: symbol, method: bbknn,     lang: python, norm: scran }
           - { strategy: symbol, method: scanorama, lang: python, norm: log_norm }
+          - { strategy: symbol, method: scanorama, lang: python, norm: pearson_residuals }
           - { strategy: symbol, method: scanorama, lang: python, norm: raw_counts }
           - { strategy: symbol, method: scanorama, lang: python, norm: scran }
           - { strategy: symbol, method: scvi,      lang: python, norm: log_norm }
+          - { strategy: symbol, method: scvi,      lang: python, norm: pearson_residuals }
           - { strategy: symbol, method: scvi,      lang: python, norm: raw_counts }
           - { strategy: symbol, method: scvi,      lang: python, norm: scran }
           - { strategy: symbol, method: scgen,     lang: python, norm: log_norm }
+          - { strategy: symbol, method: scgen,     lang: python, norm: pearson_residuals }
           - { strategy: symbol, method: scgen,     lang: python, norm: raw_counts }
           - { strategy: symbol, method: scgen,     lang: python, norm: scran }
           - { strategy: symbol, method: samap,     lang: samap,  norm: log_norm }
@@ -46,23 +49,30 @@ jobs:
           - { strategy: symbol, method: harmony,   lang: r,      norm: log_norm }
           - { strategy: symbol, method: harmony,   lang: r,      norm: scran }
           - { strategy: symbol, method: harmony,   lang: r,      norm: sctransform }
+          - { strategy: symbol, method: harmony,   lang: r,      norm: raw_counts }
           - { strategy: symbol, method: seurat4,   lang: r,      norm: log_norm }
           - { strategy: symbol, method: seurat4,   lang: r,      norm: scran }
           - { strategy: symbol, method: seurat4,   lang: r,      norm: sctransform }
+          - { strategy: symbol, method: seurat4,   lang: r,      norm: raw_counts }
           - { strategy: symbol, method: fastmnn,   lang: r,      norm: log_norm }
           - { strategy: symbol, method: fastmnn,   lang: r,      norm: scran }
           - { strategy: symbol, method: fastmnn,   lang: r,      norm: sctransform }
+          - { strategy: symbol, method: fastmnn,   lang: r,      norm: raw_counts }
           # ── ensembl_1to1 strategy ────────────────────────────────────────────
           - { strategy: ensembl_1to1, method: bbknn,     lang: python, norm: log_norm }
+          - { strategy: ensembl_1to1, method: bbknn,     lang: python, norm: pearson_residuals }
           - { strategy: ensembl_1to1, method: bbknn,     lang: python, norm: raw_counts }
           - { strategy: ensembl_1to1, method: bbknn,     lang: python, norm: scran }
           - { strategy: ensembl_1to1, method: scanorama, lang: python, norm: log_norm }
+          - { strategy: ensembl_1to1, method: scanorama, lang: python, norm: pearson_residuals }
           - { strategy: ensembl_1to1, method: scanorama, lang: python, norm: raw_counts }
           - { strategy: ensembl_1to1, method: scanorama, lang: python, norm: scran }
           - { strategy: ensembl_1to1, method: scvi,      lang: python, norm: log_norm }
+          - { strategy: ensembl_1to1, method: scvi,      lang: python, norm: pearson_residuals }
           - { strategy: ensembl_1to1, method: scvi,      lang: python, norm: raw_counts }
           - { strategy: ensembl_1to1, method: scvi,      lang: python, norm: scran }
           - { strategy: ensembl_1to1, method: scgen,     lang: python, norm: log_norm }
+          - { strategy: ensembl_1to1, method: scgen,     lang: python, norm: pearson_residuals }
           - { strategy: ensembl_1to1, method: scgen,     lang: python, norm: raw_counts }
           - { strategy: ensembl_1to1, method: scgen,     lang: python, norm: scran }
           - { strategy: ensembl_1to1, method: samap,     lang: samap,  norm: log_norm }
@@ -74,23 +84,30 @@ jobs:
           - { strategy: ensembl_1to1, method: harmony,   lang: r,      norm: log_norm }
           - { strategy: ensembl_1to1, method: harmony,   lang: r,      norm: scran }
           - { strategy: ensembl_1to1, method: harmony,   lang: r,      norm: sctransform }
+          - { strategy: ensembl_1to1, method: harmony,   lang: r,      norm: raw_counts }
           - { strategy: ensembl_1to1, method: seurat4,   lang: r,      norm: log_norm }
           - { strategy: ensembl_1to1, method: seurat4,   lang: r,      norm: scran }
           - { strategy: ensembl_1to1, method: seurat4,   lang: r,      norm: sctransform }
+          - { strategy: ensembl_1to1, method: seurat4,   lang: r,      norm: raw_counts }
           - { strategy: ensembl_1to1, method: fastmnn,   lang: r,      norm: log_norm }
           - { strategy: ensembl_1to1, method: fastmnn,   lang: r,      norm: scran }
           - { strategy: ensembl_1to1, method: fastmnn,   lang: r,      norm: sctransform }
+          - { strategy: ensembl_1to1, method: fastmnn,   lang: r,      norm: raw_counts }
           # ── ensembl_1tomany strategy ─────────────────────────────────────────
           - { strategy: ensembl_1tomany, method: bbknn,     lang: python, norm: log_norm }
+          - { strategy: ensembl_1tomany, method: bbknn,     lang: python, norm: pearson_residuals }
           - { strategy: ensembl_1tomany, method: bbknn,     lang: python, norm: raw_counts }
           - { strategy: ensembl_1tomany, method: bbknn,     lang: python, norm: scran }
           - { strategy: ensembl_1tomany, method: scanorama, lang: python, norm: log_norm }
+          - { strategy: ensembl_1tomany, method: scanorama, lang: python, norm: pearson_residuals }
           - { strategy: ensembl_1tomany, method: scanorama, lang: python, norm: raw_counts }
           - { strategy: ensembl_1tomany, method: scanorama, lang: python, norm: scran }
           - { strategy: ensembl_1tomany, method: scvi,      lang: python, norm: log_norm }
+          - { strategy: ensembl_1tomany, method: scvi,      lang: python, norm: pearson_residuals }
           - { strategy: ensembl_1tomany, method: scvi,      lang: python, norm: raw_counts }
           - { strategy: ensembl_1tomany, method: scvi,      lang: python, norm: scran }
           - { strategy: ensembl_1tomany, method: scgen,     lang: python, norm: log_norm }
+          - { strategy: ensembl_1tomany, method: scgen,     lang: python, norm: pearson_residuals }
           - { strategy: ensembl_1tomany, method: scgen,     lang: python, norm: raw_counts }
           - { strategy: ensembl_1tomany, method: scgen,     lang: python, norm: scran }
           - { strategy: ensembl_1tomany, method: samap,     lang: samap,  norm: log_norm }
@@ -102,12 +119,15 @@ jobs:
           - { strategy: ensembl_1tomany, method: harmony,   lang: r,      norm: log_norm }
           - { strategy: ensembl_1tomany, method: harmony,   lang: r,      norm: scran }
           - { strategy: ensembl_1tomany, method: harmony,   lang: r,      norm: sctransform }
+          - { strategy: ensembl_1tomany, method: harmony,   lang: r,      norm: raw_counts }
           - { strategy: ensembl_1tomany, method: seurat4,   lang: r,      norm: log_norm }
           - { strategy: ensembl_1tomany, method: seurat4,   lang: r,      norm: scran }
           - { strategy: ensembl_1tomany, method: seurat4,   lang: r,      norm: sctransform }
+          - { strategy: ensembl_1tomany, method: seurat4,   lang: r,      norm: raw_counts }
           - { strategy: ensembl_1tomany, method: fastmnn,   lang: r,      norm: log_norm }
           - { strategy: ensembl_1tomany, method: fastmnn,   lang: r,      norm: scran }
           - { strategy: ensembl_1tomany, method: fastmnn,   lang: r,      norm: sctransform }
+          - { strategy: ensembl_1tomany, method: fastmnn,   lang: r,      norm: raw_counts }
 
     steps:
       - uses: actions/checkout@v4
@@ -128,7 +148,6 @@ jobs:
         run: docker build -t r-methods:local -f docker/Dockerfile-r .
 
       - name: Build Python image
-        if: matrix.lang == 'python' || matrix.lang == 'r' || matrix.lang == 'samap' || matrix.lang == 'saturn'
         run: docker build -t python-methods:local -f docker/Dockerfile-python .
 
       - name: Build SAMap image
@@ -156,11 +175,7 @@ jobs:
           MAP_ARG=""
           if [[ "$STRATEGY" == blast_bbh_* ]] || [[ "$STRATEGY" == "orthofinder" ]]; then
             MAP="$WS/tests/data/ortholog_maps/$STRATEGY/gene_map.tsv"
-            if [ ! -f "$MAP" ]; then
-              echo "ERROR: gene_map.tsv not found at $MAP"
-              echo "Commit a pre-computed map first (see tests/data/ortholog_maps/README.md)"
-              exit 1
-            fi
+            [ -f "$MAP" ] || { echo "ERROR: gene_map.tsv not found at $MAP"; exit 1; }
             MAP_ARG="--map_file /work/tests/data/ortholog_maps/$STRATEGY/gene_map.tsv"
           fi
 
@@ -177,7 +192,7 @@ jobs:
               --output_b   /work/tests/results/ortholog_sweep/converted/Human_converted.rds \
               $MAP_ARG
 
-      # ── Python/SAMap/SATURN integration loop ─────────────────────────────────
+      # ── Python / SAMap / SATURN integration loop ─────────────────────────────
       - name: Python / SAMap / SATURN integration loop
         if: matrix.lang == 'python' || matrix.lang == 'samap' || matrix.lang == 'saturn'
         run: |
@@ -185,36 +200,18 @@ jobs:
           NORM="${{ matrix.norm }}"
           STRATEGY="${{ matrix.strategy }}"
           WS="${{ github.workspace }}"
-          CONV="$WS/tests/results/ortholog_sweep/converted"
           OUTDIR="$WS/tests/results/ortholog_sweep"
           METRICS="$OUTDIR/metrics"
 
-          # Determine container image
           case "${{ matrix.lang }}" in
             samap)  IMG="samap-methods:local" ;;
             saturn) IMG="saturn-methods:local" ;;
             *)      IMG="python-methods:local" ;;
           esac
 
-          # Step 1: Convert RDS → raw h5ad (using converted pair)
-          docker run --rm \
-            -v "$WS":/work \
-            -w /work/tests/results/ortholog_sweep/converted \
-            r-methods:local \
-            Rscript /work/scripts/run_seurat_to_anndata.R \
-              --input_a /work/tests/results/ortholog_sweep/converted/Dog_converted.rds \
-              --input_b /work/tests/results/ortholog_sweep/converted/Human_converted.rds \
-            || { echo "ERROR: RDS→h5ad conversion failed"; exit 1; }
-
-          RAW_A="$CONV/Dog_converted.h5ad"
-          RAW_B="$CONV/Human_converted.h5ad"
-
-          # Step 2: Normalize
+          # Normalize
           if [ "$NORM" = "scran" ]; then
-            # scran: normalize with R → RDS, then convert to h5ad
-            docker run --rm \
-              -v "$WS":/work \
-              r-methods:local \
+            docker run --rm -v "$WS":/work r-methods:local \
               Rscript /work/scripts/run_normalize_r.R \
                 --input_a  /work/tests/results/ortholog_sweep/converted/Dog_converted.rds \
                 --input_b  /work/tests/results/ortholog_sweep/converted/Human_converted.rds \
@@ -222,71 +219,83 @@ jobs:
                 --output_a /work/tests/results/ortholog_sweep/normalized/python/Dog_scran.rds \
                 --output_b /work/tests/results/ortholog_sweep/normalized/python/Human_scran.rds \
               || { echo "ERROR: scran normalization failed"; exit 1; }
-            docker run --rm \
-              -v "$WS":/work \
+            docker run --rm -v "$WS":/work \
               -w /work/tests/results/ortholog_sweep/normalized/python \
               r-methods:local \
               Rscript /work/scripts/run_seurat_to_anndata.R \
                 --input_a /work/tests/results/ortholog_sweep/normalized/python/Dog_scran.rds \
                 --input_b /work/tests/results/ortholog_sweep/normalized/python/Human_scran.rds \
-              || { echo "ERROR: scran RDS→h5ad conversion failed"; exit 1; }
+              || { echo "ERROR: scran RDS→h5ad failed"; exit 1; }
             INPUT_A=/work/tests/results/ortholog_sweep/normalized/python/Dog_scran.h5ad
             INPUT_B=/work/tests/results/ortholog_sweep/normalized/python/Human_scran.h5ad
           else
-            # log_norm / raw_counts / pearson_residuals: Python normalizer
-            docker run --rm \
-              -v "$WS":/work \
-              python-methods:local \
+            docker run --rm -v "$WS":/work \
+              -w /work/tests/results/ortholog_sweep/converted \
+              r-methods:local \
+              Rscript /work/scripts/run_seurat_to_anndata.R \
+                --input_a /work/tests/results/ortholog_sweep/converted/Dog_converted.rds \
+                --input_b /work/tests/results/ortholog_sweep/converted/Human_converted.rds \
+              || { echo "ERROR: RDS→h5ad conversion failed"; exit 1; }
+            docker run --rm -v "$WS":/work python-methods:local \
               python3 /work/scripts/run_normalize_python.py \
                 --input  /work/tests/results/ortholog_sweep/converted/Dog_converted.h5ad \
                 --output /work/tests/results/ortholog_sweep/normalized/python/Dog_${NORM}.h5ad \
                 --method "$NORM" \
-              || { echo "ERROR: Python normalization (A) failed"; exit 1; }
-            docker run --rm \
-              -v "$WS":/work \
-              python-methods:local \
+              || { echo "ERROR: Python normalization (Dog) failed"; exit 1; }
+            docker run --rm -v "$WS":/work python-methods:local \
               python3 /work/scripts/run_normalize_python.py \
                 --input  /work/tests/results/ortholog_sweep/converted/Human_converted.h5ad \
                 --output /work/tests/results/ortholog_sweep/normalized/python/Human_${NORM}.h5ad \
                 --method "$NORM" \
-              || { echo "ERROR: Python normalization (B) failed"; exit 1; }
+              || { echo "ERROR: Python normalization (Human) failed"; exit 1; }
             INPUT_A=/work/tests/results/ortholog_sweep/normalized/python/Dog_${NORM}.h5ad
             INPUT_B=/work/tests/results/ortholog_sweep/normalized/python/Human_${NORM}.h5ad
           fi
 
-          # Step 3: Baseline integration
-          sample_id="${STRATEGY}__${NORM}__none__0"
-          echo "=== ${METHOD} / ${STRATEGY} / ${NORM} / baseline ==="
-          timeout 600 docker run --rm \
-            -v "$WS":/work \
-            -w /work/tests/results/ortholog_sweep \
-            "$IMG" \
-            python3 /work/scripts/run_${METHOD}_module.py \
-              --input_a     "$INPUT_A" \
-              --input_b     "$INPUT_B" \
-              --sample_id   "$sample_id" \
-              --species_a   dog \
-              --species_b   human \
-              --normalization pre_normalized \
-            || echo "WARN: integration failed for ${METHOD}/${STRATEGY}/${NORM}"
+          FS_DIR="$WS/tests/data/feature_selected_ortholog/$STRATEGY/python/$NORM"
 
-          # Step 4: Evaluate
-          h5ad="$OUTDIR/${sample_id}_${METHOD}_integration.h5ad"
-          if [ -f "$h5ad" ]; then
-            timeout 120 docker run --rm \
+          run_one() {
+            local sample_id="$1" fs_arg="$2" fs_label="$3" n_label="$4"
+            timeout 600 docker run --rm \
               -v "$WS":/work \
               -w /work/tests/results/ortholog_sweep \
+              "$IMG" \
+              python3 /work/scripts/run_${METHOD}_module.py \
+                --input_a "$INPUT_A" --input_b "$INPUT_B" \
+                --sample_id "$sample_id" \
+                --species_a dog --species_b human \
+                --normalization pre_normalized $fs_arg \
+              || { echo "WARN: integration failed for $sample_id"; return; }
+            local h5ad="$OUTDIR/${sample_id}_${METHOD}_integration.h5ad"
+            [ -f "$h5ad" ] || return
+            timeout 120 docker run --rm \
+              -v "$WS":/work -w /work/tests/results/ortholog_sweep \
               python-methods:local \
               python3 /work/scripts/run_evaluate_integration.py \
                 --input_h5ad "/work/tests/results/ortholog_sweep/${sample_id}_${METHOD}_integration.h5ad" \
-              || echo "WARN: evaluation failed for ${METHOD}/${STRATEGY}/${NORM}"
+              || echo "WARN: evaluation failed for $sample_id"
             rm -f "$h5ad"
-          fi
+            local src="$OUTDIR/${sample_id}_${METHOD}_integration_scib_metrics.tsv"
+            [ -f "$src" ] && cp "$src" "$METRICS/${STRATEGY}__${METHOD}__${NORM}__${fs_label}__${n_label}.tsv" || true
+            rm -f "$OUTDIR/${sample_id}_${METHOD}"*
+          }
 
-          # Step 5: Save metrics with strategy-prefixed name
-          src="$OUTDIR/${sample_id}_${METHOD}_integration_scib_metrics.tsv"
-          [ -f "$src" ] && cp "$src" "$METRICS/${STRATEGY}__${METHOD}__${NORM}__none__0.tsv" || true
-          rm -f "$OUTDIR/${sample_id}_${METHOD}"*
+          # Baseline (no feature selection)
+          echo "=== $METHOD / $STRATEGY / $NORM / baseline ==="
+          run_one "${STRATEGY}__${NORM}__none__0" "" "none" "0"
+
+          # Feature-selected runs (skipped if FS files not yet committed)
+          [ -d "$FS_DIR" ] || { echo "No FS dir at $FS_DIR — skipping FS loop"; exit 0; }
+          for fs_file in "$FS_DIR"/fs_*_features.txt; do
+            [ -f "$fs_file" ] || continue
+            bname=$(basename "$fs_file" _features.txt)
+            n="${bname##*_}"; fs_method="${bname%_${n}}"; fs_method="${fs_method#fs_}"
+            sample_id="${STRATEGY}__${NORM}__${fs_method}__${n}"
+            echo "=== $METHOD / $STRATEGY / $NORM / $fs_method / n=$n ==="
+            run_one "$sample_id" \
+              "--features_file /work/tests/data/feature_selected_ortholog/$STRATEGY/python/$NORM/$(basename "$fs_file")" \
+              "$fs_method" "$n"
+          done
 
       # ── R integration loop ───────────────────────────────────────────────────
       - name: R integration loop
@@ -296,14 +305,10 @@ jobs:
           NORM="${{ matrix.norm }}"
           STRATEGY="${{ matrix.strategy }}"
           WS="${{ github.workspace }}"
-          CONV="$WS/tests/results/ortholog_sweep/converted"
           OUTDIR="$WS/tests/results/ortholog_sweep"
           METRICS="$OUTDIR/metrics"
 
-          # Step 1: Normalize with R
-          docker run --rm \
-            -v "$WS":/work \
-            r-methods:local \
+          docker run --rm -v "$WS":/work r-methods:local \
             Rscript /work/scripts/run_normalize_r.R \
               --input_a  /work/tests/results/ortholog_sweep/converted/Dog_converted.rds \
               --input_b  /work/tests/results/ortholog_sweep/converted/Human_converted.rds \
@@ -314,55 +319,58 @@ jobs:
 
           INPUT_A=/work/tests/results/ortholog_sweep/normalized/r/Dog_${NORM}.rds
           INPUT_B=/work/tests/results/ortholog_sweep/normalized/r/Human_${NORM}.rds
+          FS_DIR="$WS/tests/data/feature_selected_ortholog/$STRATEGY/r/$NORM"
 
-          # Step 2: Baseline integration
-          sample_id="${STRATEGY}__${NORM}__none__0"
-          echo "=== ${METHOD} / ${STRATEGY} / ${NORM} / baseline ==="
-          timeout 480 docker run --rm \
-            -v "$WS":/work \
-            -w /work/tests/results/ortholog_sweep \
-            r-methods:local \
-            Rscript /work/scripts/run_${METHOD}_module.R \
-              --input_a     "$INPUT_A" \
-              --input_b     "$INPUT_B" \
-              --sample_id   "$sample_id" \
-              --species_a   dog \
-              --species_b   human \
-              --normalization pre_normalized \
-            || echo "WARN: R integration failed for ${METHOD}/${STRATEGY}/${NORM}"
-
-          # Step 3: Convert RDS → h5ad
-          rds="$OUTDIR/${sample_id}_${METHOD}_integration.rds"
-          if [ -f "$rds" ]; then
-            timeout 120 docker run --rm \
-              -v "$WS":/work \
-              -w /work/tests/results/ortholog_sweep \
+          run_one() {
+            local sample_id="$1" fs_arg="$2" fs_label="$3" n_label="$4"
+            timeout 480 docker run --rm \
+              -v "$WS":/work -w /work/tests/results/ortholog_sweep \
+              r-methods:local \
+              Rscript /work/scripts/run_${METHOD}_module.R \
+                --input_a "$INPUT_A" --input_b "$INPUT_B" \
+                --sample_id "$sample_id" \
+                --species_a dog --species_b human \
+                --normalization pre_normalized $fs_arg \
+              || { echo "WARN: R integration failed for $sample_id"; return; }
+            local rds="$OUTDIR/${sample_id}_${METHOD}_integration.rds"
+            [ -f "$rds" ] || return
+            timeout 120 docker run --rm -v "$WS":/work -w /work/tests/results/ortholog_sweep \
               r-methods:local \
               Rscript /work/scripts/run_seurat_to_anndata.R \
                 --input_a "/work/tests/results/ortholog_sweep/${sample_id}_${METHOD}_integration.rds" \
-              || echo "WARN: RDS→h5ad conversion failed"
+              || echo "WARN: RDS→h5ad failed for $sample_id"
             rm -f "$rds"
-          fi
-
-          # Step 4: Evaluate
-          h5ad="$OUTDIR/${sample_id}_${METHOD}_integration.h5ad"
-          if [ -f "$h5ad" ]; then
-            timeout 120 docker run --rm \
-              -v "$WS":/work \
-              -w /work/tests/results/ortholog_sweep \
+            local h5ad="$OUTDIR/${sample_id}_${METHOD}_integration.h5ad"
+            [ -f "$h5ad" ] || return
+            timeout 120 docker run --rm -v "$WS":/work -w /work/tests/results/ortholog_sweep \
               python-methods:local \
               python3 /work/scripts/run_evaluate_integration.py \
                 --input_h5ad "/work/tests/results/ortholog_sweep/${sample_id}_${METHOD}_integration.h5ad" \
-              || echo "WARN: evaluation failed for ${METHOD}/${STRATEGY}/${NORM}"
+              || echo "WARN: evaluation failed for $sample_id"
             rm -f "$h5ad"
-          fi
+            local src="$OUTDIR/${sample_id}_${METHOD}_integration_scib_metrics.tsv"
+            [ -f "$src" ] && cp "$src" "$METRICS/${STRATEGY}__${METHOD}__${NORM}__${fs_label}__${n_label}.tsv" || true
+            rm -f "$OUTDIR/${sample_id}_${METHOD}"*
+          }
 
-          # Step 5: Save metrics
-          src="$OUTDIR/${sample_id}_${METHOD}_integration_scib_metrics.tsv"
-          [ -f "$src" ] && cp "$src" "$METRICS/${STRATEGY}__${METHOD}__${NORM}__none__0.tsv" || true
-          rm -f "$OUTDIR/${sample_id}_${METHOD}"*
+          # Baseline
+          echo "=== $METHOD / $STRATEGY / $NORM / baseline ==="
+          run_one "${STRATEGY}__${NORM}__none__0" "" "none" "0"
 
-      # ── Upload per-job metrics artifact ─────────────────────────────────────
+          # Feature-selected runs
+          [ -d "$FS_DIR" ] || { echo "No FS dir at $FS_DIR — skipping FS loop"; exit 0; }
+          for fs_file in "$FS_DIR"/fs_*_features.txt; do
+            [ -f "$fs_file" ] || continue
+            bname=$(basename "$fs_file" _features.txt)
+            n="${bname##*_}"; fs_method="${bname%_${n}}"; fs_method="${fs_method#fs_}"
+            sample_id="${STRATEGY}__${NORM}__${fs_method}__${n}"
+            echo "=== $METHOD / $STRATEGY / $NORM / $fs_method / n=$n ==="
+            run_one "$sample_id" \
+              "--features_file /work/tests/data/feature_selected_ortholog/$STRATEGY/r/$NORM/$(basename "$fs_file")" \
+              "$fs_method" "$n"
+          done
+
+      # ── Upload metrics artifact ──────────────────────────────────────────────
       - name: Upload metrics artifact
         uses: actions/upload-artifact@v4
         if: always()
@@ -372,7 +380,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-  # ── Aggregate all ortholog-strategy metrics and commit ───────────────────────
+  # ── Aggregate all ortholog metrics and commit ────────────────────────────────
   aggregate:
     needs: ortholog-integrate
     if: always()
@@ -403,7 +411,7 @@ jobs:
           all_rows = []
 
           for tsv_file in sorted(metrics_dir.glob("*.tsv")):
-              # Filename: {strategy}__{method}__{norm}__none__0.tsv  (5 parts)
+              # Filename: {strategy}__{method}__{norm}__{fs_method}__{n_features}.tsv
               stem = tsv_file.stem
               parts = stem.split("__")
               if len(parts) != 5:
@@ -415,13 +423,11 @@ jobs:
               except ValueError:
                   print(f"Non-numeric n_features in: {tsv_file.name}")
                   continue
-
               try:
                   df = pd.read_csv(tsv_file, sep="\t", index_col=0)
               except Exception as e:
                   print(f"Error reading {tsv_file.name}: {e}")
                   continue
-
               for embedding_col in df.columns:
                   row = {
                       "ortholog_strategy":  ortholog_strategy,
