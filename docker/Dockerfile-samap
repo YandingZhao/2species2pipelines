@@ -22,10 +22,17 @@ RUN pip install --no-cache-dir --default-timeout=300 --retries=10 \
     scikit-learn \
     leidenalg
 
-# SAMap and its SAM-algorithm dependency
+# SAMap and its SAM-algorithm dependency.
+# holoviews-samap (a samap dep) pins panel==1.3.0 with an incorrect hash on PyPI.
+# Fix: pre-install sam-algorithm, panel, and holoviews explicitly, then install
+# samap --no-deps to skip holoviews-samap entirely. Regular holoviews satisfies
+# samap.mapping and samap.analysis imports (holoviews-samap only adds viz features).
 RUN pip install --no-cache-dir --default-timeout=300 --retries=10 \
     sam-algorithm \
-    samap
+    panel \
+    holoviews
+
+RUN pip install --no-cache-dir samap --no-deps
 
 RUN python -c "import samap; print('samap', samap.__version__, 'OK')" && \
     blastp -version
