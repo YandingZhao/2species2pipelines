@@ -24,14 +24,34 @@ ENV RETICULATE_PYTHON=/opt/rpy/bin/python
 
 RUN R -e "install.packages(c('harmony','data.table','cowplot'), repos='https://cloud.r-project.org')"
 RUN R -e "if (!requireNamespace('BiocManager', quietly=TRUE)) install.packages('BiocManager', repos='https://cloud.r-project.org'); BiocManager::install(c('SingleCellExperiment','batchelor','zellkonverter','scran','scuttle'), ask=FALSE, update=FALSE)"
-RUN R -e "if (!requireNamespace('remotes', quietly=TRUE)) install.packages('remotes', repos='https://cloud.r-project.org'); remotes::install_github('satijalab/seurat-wrappers')"
-RUN R -e "if (!requireNamespace('orthogene', quietly=TRUE)) remotes::install_github('neurogenomics/orthogene')"
+# install_github calls are retried up to 3× (60s sleep) to handle GitHub API
+# unauthenticated rate limits (60/hr) when many parallel jobs run simultaneously.
+RUN if [ -n "$GITHUB_PAT" ]; then \
+      R -e "if (!requireNamespace('remotes',quietly=TRUE)) install.packages('remotes',repos='https://cloud.r-project.org'); remotes::install_github('satijalab/seurat-wrappers')"; \
+    else \
+      for i in 1 2 3; do \
+        R -e "if (!requireNamespace('remotes',quietly=TRUE)) install.packages('remotes',repos='https://cloud.r-project.org'); remotes::install_github('satijalab/seurat-wrappers')" && break || \
+        { echo "Attempt $i failed, sleeping 65s for rate limit reset..."; sleep 65; }; \
+      done; \
+    fi
+
+RUN if [ -n "$GITHUB_PAT" ]; then \
+      R -e "if (!requireNamespace('orthogene',quietly=TRUE)) remotes::install_github('neurogenomics/orthogene')"; \
+    else \
+      for i in 1 2 3; do \
+        R -e "if (!requireNamespace('orthogene',quietly=TRUE)) remotes::install_github('neurogenomics/orthogene')" && break || \
+        { echo "Attempt $i failed, sleeping 65s..."; sleep 65; }; \
+      done; \
+    fi
 
 # Feature selection methods (Phase 4)
 RUN R -e "BiocManager::install('M3Drop', ask=FALSE, update=FALSE)"
 RUN R -e "BiocManager::install('scry',   ask=FALSE, update=FALSE)"
 RUN R -e "install.packages(c('scPNMF','singleCellHaystack'), repos='https://cloud.r-project.org')"
-RUN R -e "remotes::install_github('prabhakarlab/DUBStepR')"
+RUN for i in 1 2 3; do \
+      R -e "remotes::install_github('prabhakarlab/DUBStepR')" && break || \
+      { echo "Attempt $i failed, sleeping 65s..."; sleep 65; }; \
+    done
 RUN R -e "tryCatch(remotes::install_github('LuyiTian/scSEGIndex'), error=function(e) message('scSEGIndex unavailable, skipping: ', e\$message))"
 
 WORKDIR /workspace
