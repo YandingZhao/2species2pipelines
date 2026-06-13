@@ -260,5 +260,10 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "chore: generate ortholog FS fixtures for strategy=${STRATEGY} [skip ci]"
-            git push origin HEAD:${{ github.ref_name }}
+            # Retry push up to 3 times with rebase in case parallel jobs pushed first
+            for attempt in 1 2 3; do
+              git pull --rebase origin ${{ github.ref_name }} && \
+              git push origin HEAD:${{ github.ref_name }} && break || \
+              { echo "Push attempt $attempt failed, retrying..."; sleep $((attempt * 15)); }
+            done
           fi
