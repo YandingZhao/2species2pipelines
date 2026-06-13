@@ -1,0 +1,9 @@
+sample: fs
+species_a: dog
+species_b: human
+method: osca
+n_features_requested: 3000
+n_features_selected: 3000
+n_common_genes: 8473
+seed: 42
+status: ok
