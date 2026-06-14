@@ -1,0 +1,13 @@
+FROM r-methods:local
+
+# Upgrades harmony from CRAN (v1.x) to GitHub (v2.x) for harmony_v2 method.
+# The base r-methods image keeps CRAN harmony so both can coexist in CI.
+ARG GITHUB_PAT=""
+ENV GITHUB_PAT=${GITHUB_PAT}
+
+RUN for i in 1 2 3; do \
+      R -e "remotes::install_github('immunogenomics/harmony', force=TRUE, upgrade='never')" && break || \
+      { echo "Attempt $i failed, sleeping 65s..."; sleep 65; }; \
+    done
+
+RUN R -e "library(harmony); cat('harmony', as.character(packageVersion('harmony')), 'OK\n')"
