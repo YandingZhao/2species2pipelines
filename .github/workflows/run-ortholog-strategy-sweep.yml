@@ -62,6 +62,13 @@ jobs:
           - { strategy: symbol, method: fastmnn,   lang: r,      norm: scran }
           - { strategy: symbol, method: fastmnn,   lang: r,      norm: sctransform }
           - { strategy: symbol, method: fastmnn,   lang: r,      norm: raw_counts }
+          - { strategy: symbol, method: liger,     lang: r,      norm: log_norm }
+          - { strategy: symbol, method: liger,     lang: r,      norm: scran }
+          - { strategy: symbol, method: liger,     lang: r,      norm: sctransform }
+          - { strategy: symbol, method: liger,     lang: r,      norm: raw_counts }
+          - { strategy: symbol, method: simba,     lang: simba,  norm: log_norm }
+          - { strategy: symbol, method: simba,     lang: simba,  norm: raw_counts }
+          - { strategy: symbol, method: simba,     lang: simba,  norm: scran }
           # ── ensembl_1to1 strategy ────────────────────────────────────────────
           - { strategy: ensembl_1to1, method: bbknn,     lang: python, norm: log_norm }
           - { strategy: ensembl_1to1, method: bbknn,     lang: python, norm: pearson_residuals }
@@ -101,6 +108,13 @@ jobs:
           - { strategy: ensembl_1to1, method: fastmnn,   lang: r,      norm: scran }
           - { strategy: ensembl_1to1, method: fastmnn,   lang: r,      norm: sctransform }
           - { strategy: ensembl_1to1, method: fastmnn,   lang: r,      norm: raw_counts }
+          - { strategy: ensembl_1to1, method: liger,     lang: r,      norm: log_norm }
+          - { strategy: ensembl_1to1, method: liger,     lang: r,      norm: scran }
+          - { strategy: ensembl_1to1, method: liger,     lang: r,      norm: sctransform }
+          - { strategy: ensembl_1to1, method: liger,     lang: r,      norm: raw_counts }
+          - { strategy: ensembl_1to1, method: simba,     lang: simba,  norm: log_norm }
+          - { strategy: ensembl_1to1, method: simba,     lang: simba,  norm: raw_counts }
+          - { strategy: ensembl_1to1, method: simba,     lang: simba,  norm: scran }
           # ── ensembl_1tomany strategy ─────────────────────────────────────────
           - { strategy: ensembl_1tomany, method: bbknn,     lang: python, norm: log_norm }
           - { strategy: ensembl_1tomany, method: bbknn,     lang: python, norm: pearson_residuals }
@@ -140,6 +154,13 @@ jobs:
           - { strategy: ensembl_1tomany, method: fastmnn,   lang: r,      norm: scran }
           - { strategy: ensembl_1tomany, method: fastmnn,   lang: r,      norm: sctransform }
           - { strategy: ensembl_1tomany, method: fastmnn,   lang: r,      norm: raw_counts }
+          - { strategy: ensembl_1tomany, method: liger,     lang: r,      norm: log_norm }
+          - { strategy: ensembl_1tomany, method: liger,     lang: r,      norm: scran }
+          - { strategy: ensembl_1tomany, method: liger,     lang: r,      norm: sctransform }
+          - { strategy: ensembl_1tomany, method: liger,     lang: r,      norm: raw_counts }
+          - { strategy: ensembl_1tomany, method: simba,     lang: simba,  norm: log_norm }
+          - { strategy: ensembl_1tomany, method: simba,     lang: simba,  norm: raw_counts }
+          - { strategy: ensembl_1tomany, method: simba,     lang: simba,  norm: scran }
 
     steps:
       - uses: actions/checkout@v4
@@ -178,6 +199,10 @@ jobs:
         if: matrix.lang == 'saturn'
         run: docker build -t saturn-methods:local -f docker/Dockerfile-saturn .
 
+      - name: Build SIMBA image
+        if: matrix.lang == 'simba'
+        run: docker build -t simba-methods:local -f docker/Dockerfile-simba .
+
       # ── Create output directories ────────────────────────────────────────────
       - name: Create output directories
         run: |
@@ -214,7 +239,7 @@ jobs:
 
       # ── Python / SAMap / SATURN integration loop ─────────────────────────────
       - name: Python / SAMap / SATURN integration loop
-        if: matrix.lang == 'python' || matrix.lang == 'samap' || matrix.lang == 'saturn'
+        if: matrix.lang == 'python' || matrix.lang == 'samap' || matrix.lang == 'saturn' || matrix.lang == 'simba'
         run: |
           METHOD="${{ matrix.method }}"
           NORM="${{ matrix.norm }}"
@@ -226,6 +251,7 @@ jobs:
           case "${{ matrix.lang }}" in
             samap)  IMG="samap-methods:local" ;;
             saturn) IMG="saturn-methods:local" ;;
+            simba)  IMG="simba-methods:local" ;;
             *)      IMG="python-methods:local" ;;
           esac
 

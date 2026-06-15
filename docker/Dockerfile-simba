@@ -1,0 +1,8 @@
+FROM python-methods:local
+
+# SIMBA: SIngle-cell eMBedding Along with features
+# Uses PyTorch BigGraph (PBG) for cell-gene bipartite graph embedding.
+# torchbiggraph is bundled as a simba dependency; CPU training is supported.
+RUN pip install --no-cache-dir --default-timeout=300 --retries=10 simba
+
+RUN python3 -c "import simba; print('simba', simba.__version__, 'OK')"

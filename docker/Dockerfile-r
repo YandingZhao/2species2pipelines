@@ -22,7 +22,7 @@ RUN python3 -m venv /opt/rpy && \
 
 ENV RETICULATE_PYTHON=/opt/rpy/bin/python
 
-RUN R -e "install.packages(c('harmony','data.table','cowplot'), repos='https://cloud.r-project.org')"
+RUN R -e "install.packages(c('harmony','data.table','cowplot','rliger'), repos='https://cloud.r-project.org')"
 RUN R -e "if (!requireNamespace('BiocManager', quietly=TRUE)) install.packages('BiocManager', repos='https://cloud.r-project.org'); BiocManager::install(c('SingleCellExperiment','batchelor','zellkonverter','scran','scuttle'), ask=FALSE, update=FALSE)"
 # install_github calls are retried up to 3× (60s sleep) to handle GitHub API
 # unauthenticated rate limits (60/hr) when many parallel jobs run simultaneously.

@@ -38,8 +38,8 @@ SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
 RSCRIPT = os.environ.get("RSCRIPT", "Rscript")
 PYTHON = sys.executable
 
-R_METHODS = {"harmony", "harmony_v2", "seurat4", "fastmnn"}
-PYTHON_METHODS = {"bbknn", "scanorama", "scvi", "scgen", "samap", "saturn"}
+R_METHODS = {"harmony", "harmony_v2", "seurat4", "fastmnn", "liger"}
+PYTHON_METHODS = {"bbknn", "scanorama", "scvi", "scgen", "samap", "saturn", "simba"}
 ALL_METHODS = R_METHODS | PYTHON_METHODS
 
 ORTHOLOG_STRATEGIES = (
@@ -64,16 +64,18 @@ ALL_FS_METHODS = PYTHON_FS_METHODS + R_FS_METHODS
 
 # Embedding key each method stores in obsm (used for UMAP + neighbour graph)
 EMBEDDING_KEYS = {
-    "harmony": "X_harmony",
+    "harmony":    "X_harmony",
     "harmony_v2": "X_harmony",
-    "seurat4": "X_pca",
-    "fastmnn": "X_mnn",
-    "bbknn": "X_pca",       # BBKNN also pre-computes the graph; handled specially
-    "scanorama": "X_scanorama",
-    "scvi": "X_scvi",
-    "scgen": "X_scgen",
-    "samap": "X_samap",
-    "saturn": "X_saturn",
+    "seurat4":    "X_pca",
+    "fastmnn":    "X_mnn",
+    "liger":      "X_inmf",
+    "bbknn":      "X_pca",    # BBKNN also pre-computes the graph; handled specially
+    "scanorama":  "X_scanorama",
+    "scvi":       "X_scvi",
+    "scgen":      "X_scgen",
+    "samap":      "X_samap",
+    "saturn":     "X_saturn",
+    "simba":      "X_simba",
 }
 
 # Methods whose h5ad already has a pre-computed neighbour graph (skip sc.pp.neighbors)
@@ -193,6 +195,7 @@ def run_r_integration(method, input_a, input_b, sample_id, species_a, species_b,
         "harmony_v2": "run_harmony_v2_module.R",
         "seurat4":    "run_seurat4_module.R",
         "fastmnn":    "run_fastmnn_module.R",
+        "liger":      "run_liger_module.R",
     }
     cmd = [RSCRIPT, str(SCRIPTS_DIR / script_map[method]),
            "--input_a", str(input_a), "--input_b", str(input_b),
@@ -209,12 +212,13 @@ def run_python_integration(method, input_a, input_b, sample_id, species_a, speci
                            workdir, normalization="log_norm", features_file=None):
     """Run a BBKNN / Scanorama / scVI / scGen integration. Returns integrated h5ad path."""
     script_map = {
-        "bbknn": "run_bbknn_module.py",
+        "bbknn":     "run_bbknn_module.py",
         "scanorama": "run_scanorama_module.py",
-        "scvi": "run_scvi_module.py",
-        "scgen": "run_scgen_module.py",
-        "samap": "run_samap_module.py",
-        "saturn": "run_saturn_module.py",
+        "scvi":      "run_scvi_module.py",
+        "scgen":     "run_scgen_module.py",
+        "samap":     "run_samap_module.py",
+        "saturn":    "run_saturn_module.py",
+        "simba":     "run_simba_module.py",
     }
     cmd = [PYTHON, str(SCRIPTS_DIR / script_map[method]),
            "--input_a", str(input_a), "--input_b", str(input_b),
