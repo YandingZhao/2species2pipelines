@@ -71,14 +71,11 @@ if (!("celltype" %in% colnames(merged@meta.data))) {
   merged$celltype <- "unknown"
 }
 
-# Harmony v2 parameters:
-#   batch.prop.cutoff — filters batches below this cell-fraction threshold (v2 new param)
-#   theta             — diversity penalty (same as v1, kept for comparability)
-#   kmeans_init_nstart / kmeans_init_iter — kmeans++ initialization (v2 improved default)
+# Harmony v2 differences vs v1: C++ backend (faster), improved kmeans++ initialisation.
+# batch.prop.cutoff is not yet in the public v2 API; keep args to the supported set.
 H2_ARGS <- list(
-  group.by.vars     = "batch",
-  theta             = 2,
-  batch.prop.cutoff = 0.05
+  group.by.vars = "batch",
+  theta         = 2
 )
 
 if (normalization == "sctransform") {
