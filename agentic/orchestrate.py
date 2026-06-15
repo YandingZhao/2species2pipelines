@@ -6,10 +6,13 @@ Replaces Nextflow as the execution layer for programmatic / agentic use.
 Accepts two input files (.rds or .h5ad), runs one or more integration methods,
 evaluates with scIB metrics, generates UMAPs, and writes a JSON summary.
 
-Full pipeline for .rds inputs:
-  ortholog_convert → seurat_to_anndata (for Python methods)
-                   → R integration → seurat_to_anndata (single) → h5ad
-                   → Python integration → h5ad
+4-step pipeline for .rds inputs:
+  Step 1 — Ortholog conversion  (strategy: symbol | ensembl_1to1 | ensembl_1tomany |
+                                            blast_bbh_60/80/90 | orthofinder)
+  Step 2 — Normalization        (log_norm | pearson_residuals | scran | sctransform | raw_counts)
+  Step 3 — Feature selection    (seurat_v3 | pearson | triku | ... or None = internal HVG)
+  Step 4 — Integration          (harmony | harmony_v2 | seurat4 | fastmnn |
+                                  bbknn | scanorama | scvi | scgen | samap | saturn)
   all h5ads → evaluate → aggregate → umap
 
 Usage:
@@ -17,7 +20,8 @@ Usage:
     --input_a tests/data/data/Dog_pt15_Immune_Lymphoid_diet.rds \
     --input_b tests/data/data/Human_X00004_Immune_Lymphoid_diet.rds \
     --sample_id task4_demo --species_a dog --species_b human \
-    --methods harmony scvi bbknn --outdir results/agentic
+    --strategy ensembl_1to1 \
+    --methods harmony harmony_v2 scvi bbknn --outdir results/agentic
 """
 
 import argparse
@@ -34,9 +38,14 @@ SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
 RSCRIPT = os.environ.get("RSCRIPT", "Rscript")
 PYTHON = sys.executable
 
-R_METHODS = {"harmony", "seurat4", "fastmnn"}
+R_METHODS = {"harmony", "harmony_v2", "seurat4", "fastmnn"}
 PYTHON_METHODS = {"bbknn", "scanorama", "scvi", "scgen", "samap", "saturn"}
 ALL_METHODS = R_METHODS | PYTHON_METHODS
+
+ORTHOLOG_STRATEGIES = (
+    "symbol", "ensembl_1to1", "ensembl_1tomany",
+    "blast_bbh_60", "blast_bbh_80", "blast_bbh_90", "orthofinder",
+)
 
 # Feature selection methods available in run_feature_selection.py (Python)
 PYTHON_FS_METHODS = (
@@ -56,6 +65,7 @@ ALL_FS_METHODS = PYTHON_FS_METHODS + R_FS_METHODS
 # Embedding key each method stores in obsm (used for UMAP + neighbour graph)
 EMBEDDING_KEYS = {
     "harmony": "X_harmony",
+    "harmony_v2": "X_harmony",
     "seurat4": "X_pca",
     "fastmnn": "X_mnn",
     "bbknn": "X_pca",       # BBKNN also pre-computes the graph; handled specially
@@ -86,21 +96,25 @@ def _run(cmd, cwd=None, label=""):
 # Pipeline steps
 # ---------------------------------------------------------------------------
 
-def ortholog_convert(input_a, input_b, sample_id, species_a, species_b, workdir):
-    """Convert species_a genes to species_b orthologs using orthogene.
-    Returns (rds_a, rds_b) paths in workdir."""
-    script = SCRIPTS_DIR / "run_ortholog_convert_pair.R"
-    _run(
-        [RSCRIPT, str(script),
-         "--input_a", str(input_a), "--input_b", str(input_b),
-         "--sample_id", sample_id,
-         "--species_a", species_a, "--species_b", species_b],
-        cwd=str(workdir), label="ortholog_convert",
-    )
-    return (
-        Path(workdir) / f"{sample_id}_a_ortholog.rds",
-        Path(workdir) / f"{sample_id}_b_ortholog.rds",
-    )
+def ortholog_convert(input_a, input_b, sample_id, species_a, species_b, workdir,
+                     strategy="ensembl_1to1", map_file=None):
+    """Convert species A genes to species B ortholog space.
+
+    strategy : one of ORTHOLOG_STRATEGIES (default ensembl_1to1)
+    map_file : required for blast_bbh_* and orthofinder strategies
+    Returns (rds_a, rds_b) paths in workdir.
+    """
+    out_a = Path(workdir) / f"{sample_id}_a_ortholog.rds"
+    out_b = Path(workdir) / f"{sample_id}_b_ortholog.rds"
+    cmd = [RSCRIPT, str(SCRIPTS_DIR / "run_ortholog_convert.R"),
+           "--strategy",  strategy,
+           "--input_a",   str(input_a), "--input_b",  str(input_b),
+           "--species_a", species_a,    "--species_b", species_b,
+           "--output_a",  str(out_a),   "--output_b",  str(out_b)]
+    if map_file:
+        cmd += ["--map_file", str(map_file)]
+    _run(cmd, cwd=str(workdir), label=f"ortholog_convert_{strategy}")
+    return out_a, out_b
 
 
 def seurat_to_anndata_pair(input_a, input_b, workdir):
@@ -175,9 +189,10 @@ def run_r_integration(method, input_a, input_b, sample_id, species_a, species_b,
                       workdir, normalization="log_norm", features_file=None):
     """Run a Harmony / Seurat4 / fastMNN integration. Returns integrated RDS path."""
     script_map = {
-        "harmony": "run_harmony_module.R",
-        "seurat4": "run_seurat4_module.R",
-        "fastmnn": "run_fastmnn_module.R",
+        "harmony":    "run_harmony_module.R",
+        "harmony_v2": "run_harmony_v2_module.R",
+        "seurat4":    "run_seurat4_module.R",
+        "fastmnn":    "run_fastmnn_module.R",
     }
     cmd = [RSCRIPT, str(SCRIPTS_DIR / script_map[method]),
            "--input_a", str(input_a), "--input_b", str(input_b),
@@ -321,6 +336,8 @@ def run(
     species_b,
     methods=None,
     outdir="results/agentic",
+    strategy="ensembl_1to1",
+    map_file=None,
     skip_ortholog=False,
     skip_umap=False,
     normalizations=None,
@@ -350,6 +367,7 @@ def run(
         "species_a": species_a,
         "species_b": species_b,
         "input_format": "rds" if is_rds else "h5ad",
+        "ortholog_strategy": strategy,
         "methods_requested": methods,
         "methods": {},
     }
@@ -359,9 +377,10 @@ def run(
 
         # ── Step 1: Ortholog conversion ──────────────────────────────────────
         if is_rds and not skip_ortholog:
-            print(f"\n[1/4] Ortholog conversion  ({species_a} → {species_b})")
+            print(f"\n[1/4] Ortholog conversion  ({species_a} → {species_b})  strategy={strategy}")
             rds_a, rds_b = ortholog_convert(
-                input_a, input_b, sample_id, species_a, species_b, tmpdir
+                input_a, input_b, sample_id, species_a, species_b, tmpdir,
+                strategy=strategy, map_file=map_file,
             )
         else:
             rds_a, rds_b = input_a, input_b
@@ -552,6 +571,14 @@ def main():
     )
     parser.add_argument("--outdir", default="results/agentic", help="Output directory")
     parser.add_argument(
+        "--strategy", default="ensembl_1to1", choices=list(ORTHOLOG_STRATEGIES),
+        help="Step 1: ortholog gene-mapping strategy",
+    )
+    parser.add_argument(
+        "--map_file", default=None,
+        help="Pre-computed gene map TSV (required for blast_bbh_* and orthofinder strategies)",
+    )
+    parser.add_argument(
         "--skip_ortholog", action="store_true",
         help="Skip ortholog conversion (inputs already share gene space)",
     )
@@ -584,6 +611,8 @@ def main():
         species_b=args.species_b,
         methods=args.methods,
         outdir=args.outdir,
+        strategy=args.strategy,
+        map_file=args.map_file,
         skip_ortholog=args.skip_ortholog,
         skip_umap=args.skip_umap,
         normalizations=args.normalizations,
